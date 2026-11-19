@@ -137,6 +137,21 @@ namespace KDEConnect.WP81.Transport
     }
 
     /// <summary>
+    /// A completed TLS handshake: the encrypted application-data stream plus
+    /// what we learned about the peer.
+    /// </summary>
+    public interface ITlsSession : IDisposable
+    {
+        /// <summary>Encrypted application data. Framed packets flow over this.</summary>
+        Stream ApplicationData { get; }
+
+        TlsHandshakeResult Result { get; }
+
+        /// <summary>Orderly TLS close_notify if possible, then release the channel.</summary>
+        void Close();
+    }
+
+    /// <summary>
     /// A TLS implementation. At least one backend must be able to perform BOTH
     /// roles, otherwise direct interoperability with stock KDE Connect is
     /// impossible (docs/protocol.md §4.2).
@@ -156,7 +171,7 @@ namespace KDEConnect.WP81.Transport
         /// TLS handshake on a connection WE dialled. Despite the TCP direction,
         /// this side is the TLS *server* in the KDE Connect protocol.
         /// </summary>
-        Task<TlsHandshakeResult> HandshakeAsServerAsync(
+        Task<ITlsSession> HandshakeAsServerAsync(
             RawChannel channel,
             TlsIdentity local,
             TlsPeerPolicy peer,
@@ -167,7 +182,7 @@ namespace KDEConnect.WP81.Transport
         /// TLS handshake on a connection the PEER dialled to us. Despite the TCP
         /// direction, this side is the TLS *client* in the KDE Connect protocol.
         /// </summary>
-        Task<TlsHandshakeResult> HandshakeAsClientAsync(
+        Task<ITlsSession> HandshakeAsClientAsync(
             RawChannel channel,
             TlsIdentity local,
             TlsPeerPolicy peer,

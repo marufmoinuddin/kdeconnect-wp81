@@ -1,5 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
+using KDEConnect.WP81.Transport;
+using KDEConnect.WP81.Security;
+using Org.BouncyCastle.X509;
 using System.Text;
 using KDEConnect.WP81.Core;
 
@@ -47,6 +55,258 @@ namespace KdeConnect.HostTests
             RateLimitTests();
             RedactorTests();
             GoldenFixtureTests();
+            TlsTests();
+        }
+
+        // ------------------------------------------------------------------ //
+        //  TLS: real handshakes over real sockets, using the same Bouncy Castle
+        //  1.8.2 build the phone project vendors.
+        // ------------------------------------------------------------------ //
+
+        private const string PhoneDeviceId = "0123456789abcdef0123456789abcdef";
+        private const string DesktopDeviceId = "abcdef0123456789abcdef0123456789";
+
+        private sealed class HandshakeOutcome
+        {
+            public ITlsSession Dialer;
+            public ITlsSession Acceptor;
+            public Exception Error;
+        }
+
+        /// <summary>
+        /// Runs one full KDE-Connect-shaped handshake over loopback TCP.
+        /// Remember the role inversion: the side that DIALS is the TLS server.
+        /// </summary>
+        private static HandshakeOutcome PerformHandshake(
+            TlsIdentity dialerIdentity,
+            TlsIdentity acceptorIdentity,
+            TlsPeerPolicy dialerPolicy,
+            TlsPeerPolicy acceptorPolicy)
+        {
+            HandshakeOutcome outcome = new HandshakeOutcome();
+            BouncyCastleTlsBackend backend = new BouncyCastleTlsBackend();
+
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+            Task dialerTask = Task.Run(delegate
+            {
+                TcpClient client = null;
+                try
+                {
+                    // Deliberately NOT in a using block: the socket must outlive
+                    // the handshake so the session's application stream works.
+                    // Ownership passes to RawChannel, released by session.Close().
+                    client = new TcpClient();
+                    client.Connect(IPAddress.Loopback, port);
+                    RawChannel channel = new RawChannel(client.GetStream(), client, "127.0.0.1", port);
+                    outcome.Dialer = backend.HandshakeAsServerAsync(
+                        channel, dialerIdentity, dialerPolicy,
+                        TimeSpan.FromSeconds(15), CancellationToken.None).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    if (client != null)
+                    {
+                        client.Close();
+                    }
+                    if (outcome.Error == null)
+                    {
+                        outcome.Error = ex;
+                    }
+                }
+            });
+
+            Task acceptorTask = Task.Run(delegate
+            {
+                TcpClient server = null;
+                try
+                {
+                    server = listener.AcceptTcpClient();
+                    RawChannel channel = new RawChannel(server.GetStream(), server, "127.0.0.1", port);
+                    outcome.Acceptor = backend.HandshakeAsClientAsync(
+                        channel, acceptorIdentity, acceptorPolicy,
+                        TimeSpan.FromSeconds(15), CancellationToken.None).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    if (server != null)
+                    {
+                        server.Close();
+                    }
+                    if (outcome.Error == null)
+                    {
+                        outcome.Error = ex;
+                    }
+                }
+            });
+
+            Task.WaitAll(new Task[] { dialerTask, acceptorTask }, TimeSpan.FromSeconds(30));
+            listener.Stop();
+            return outcome;
+        }
+
+
+        private static void TlsTests()
+        {
+            Section("TLS (Bouncy Castle 1.8.2, host)");
+
+            // ---- certificate shape ---------------------------------------- //
+            TlsIdentity phone = CertificateProvider.CreateIdentity(PhoneDeviceId);
+            TlsIdentity desktop = CertificateProvider.CreateIdentity(DesktopDeviceId);
+
+            X509Certificate phoneCertificate = CertificateProvider.LoadCertificate(phone.CertificateDer);
+            CheckEqual("cert CN is the device id", PhoneDeviceId, CertificateProvider.GetCommonName(phoneCertificate));
+            Check("cert valid now", CertificateProvider.IsValidAt(phoneCertificate, DateTime.UtcNow), "not valid");
+            Check("cert notBefore in the past", phoneCertificate.NotBefore <= DateTime.UtcNow, "future");
+            Check("cert notAfter years away", phoneCertificate.NotAfter >= DateTime.UtcNow.AddYears(5), "too soon");
+            Check("cert organisation", phoneCertificate.SubjectDN.ToString().Contains("KDE"), phoneCertificate.SubjectDN.ToString());
+            Check("private key reloads", CertificateProvider.LoadPrivateKey(phone.PrivateKeyDer) != null, "null");
+            Check("cert reloads", CertificateProvider.LoadCertificate(phone.CertificateDer) != null, "null");
+            Check("distinguished names differ per device",
+                CertificateProvider.GetCommonName(CertificateProvider.LoadCertificate(desktop.CertificateDer)) == DesktopDeviceId,
+                "mismatch");
+
+            // ---- mutual handshake, we dialled (we are the TLS server) ------ //
+            HandshakeOutcome out1 = PerformHandshake(phone, desktop,
+                new TlsPeerPolicy(), new TlsPeerPolicy());
+
+            if (out1.Error != null)
+            {
+                Check("handshake (dialer=TLS server) completes", false, out1.Error.ToString());
+            }
+            else
+            {
+                Check("handshake (dialer=TLS server) completes", true, string.Empty);
+                Check("dialer obtained an application stream", out1.Dialer.ApplicationData != null, "null");
+                Check("acceptor obtained an application stream", out1.Acceptor.ApplicationData != null, "null");
+                CheckEqual("acceptor sees dialer certificate CN", PhoneDeviceId,
+                    out1.Acceptor.Result.PeerCertificateCommonName);
+                CheckEqual("dialer sees acceptor certificate CN", DesktopDeviceId,
+                    out1.Dialer.Result.PeerCertificateCommonName);
+                Check("acceptor got a real certificate", out1.Acceptor.Result.PeerCertificateDer != null &&
+                    out1.Acceptor.Result.PeerCertificateDer.Length > 0, "empty");
+                Check("acceptor found certificate valid in time",
+                    out1.Acceptor.Result.PeerCertificateValidInTime, "invalid");
+                Check("dialer found certificate valid in time",
+                    out1.Dialer.Result.PeerCertificateValidInTime, "invalid");
+                CheckEqual("peer certificate bytes match what was generated", 1,
+                    BytesEqual(desktop.CertificateDer, out1.Dialer.Result.PeerCertificateDer) ? 1 : 0);
+
+                // application data must actually flow both ways
+                byte[] payload = System.Text.Encoding.UTF8.GetBytes("{\"type\":\"kdeconnect.ping\"}\n");
+                out1.Dialer.ApplicationData.Write(payload, 0, payload.Length);
+                out1.Dialer.ApplicationData.Flush();
+                byte[] received = new byte[payload.Length];
+                int read = ReadFully(out1.Acceptor.ApplicationData, received, payload.Length);
+                CheckEqual("application data crosses the tunnel", payload.Length, read);
+                Check("application data intact",
+                    System.Text.Encoding.UTF8.GetString(received) == "{\"type\":\"kdeconnect.ping\"}\n",
+                    System.Text.Encoding.UTF8.GetString(received));
+
+                out1.Dialer.Close();
+                out1.Acceptor.Close();
+            }
+
+            // ---- reverse roles: we accepted (we are the TLS client) ------- //
+            HandshakeOutcome out2 = PerformHandshake(desktop, phone,
+                new TlsPeerPolicy(), new TlsPeerPolicy());
+
+            if (out2.Error != null)
+            {
+                Check("handshake (acceptor=TLS client) completes", false, out2.Error.ToString());
+            }
+            else
+            {
+                Check("handshake (acceptor=TLS client) completes", true, string.Empty);
+                // Role check: here the DIALER holds the desktop identity and the
+                // ACCEPTOR holds the phone identity, so each side must see the
+                // other's common name.
+                CheckEqual("dialer sees acceptor certificate CN", PhoneDeviceId,
+                    out2.Dialer.Result.PeerCertificateCommonName);
+                CheckEqual("acceptor sees dialer certificate CN", DesktopDeviceId,
+                    out2.Acceptor.Result.PeerCertificateCommonName);
+                out2.Dialer.Close();
+                out2.Acceptor.Close();
+            }
+
+            // ---- pinning policy ------------------------------------------- //
+            byte[] pinned = desktop.CertificateDer;
+            HandshakeContext pinnedOk = new HandshakeContext();
+            pinnedOk.PlaintextIdentity = BuildConnection(DesktopDeviceId, 8);
+            pinnedOk.SecureIdentity = BuildIdentity(DesktopDeviceId, 8);
+            pinnedOk.PeerCertificateCommonName = DesktopDeviceId;
+            pinnedOk.PeerCertificateValidInTime = true;
+            pinnedOk.PinnedCertificateDer = pinned;
+            pinnedOk.PresentedCertificateDer = desktop.CertificateDer;
+            pinnedOk.IsTrustedPeer = true;
+            Check("pinning accepts the original certificate", pinnedOk.Evaluate() == HandshakeDecision.Accept,
+                pinnedOk.DescribeFailures());
+
+            HandshakeContext pinnedChanged = Clone(pinnedOk);
+            pinnedChanged.PresentedCertificateDer = phone.CertificateDer;
+            Check("pinning rejects a replaced certificate", pinnedChanged.Evaluate() == HandshakeDecision.Reject,
+                "accepted");
+
+            // ---- timeout --------------------------------------------------- //
+            TcpListener silent = new TcpListener(IPAddress.Loopback, 0);
+            silent.Start();
+            int silentPort = ((IPEndPoint)silent.LocalEndpoint).Port;
+            Task<string> stalled = Task.Run(delegate
+            {
+                using (TcpClient c = new TcpClient())
+                {
+                    c.Connect(IPAddress.Loopback, silentPort);
+                    RawChannel ch = new RawChannel(c.GetStream(), c, "127.0.0.1", silentPort);
+                    BouncyCastleTlsBackend b = new BouncyCastleTlsBackend();
+                    try
+                    {
+                        b.HandshakeAsServerAsync(ch, phone, new TlsPeerPolicy(),
+                            TimeSpan.FromMilliseconds(700), CancellationToken.None).GetAwaiter().GetResult();
+                    }
+                    catch (TimeoutException)
+                    {
+                        return "timeout";
+                    }
+                }
+                return "no-timeout";
+            });
+            // The listener never accepts, so the handshake cannot finish.
+            string timeoutOutcome = stalled.Wait(TimeSpan.FromSeconds(10)) ? stalled.Result : "hung";
+            silent.Stop();
+            Check("handshake times out instead of hanging forever", timeoutOutcome != "hung", timeoutOutcome);
+        }
+
+        private static int ReadFully(Stream stream, byte[] buffer, int count)
+        {
+            int total = 0;
+            while (total < count)
+            {
+                int n = stream.Read(buffer, total, count - total);
+                if (n <= 0)
+                {
+                    break;
+                }
+                total += n;
+            }
+            return total;
+        }
+
+        private static bool BytesEqual(byte[] a, byte[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length)
+            {
+                return false;
+            }
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i] != b[i])
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         // ------------------------------------------------------------------ //
@@ -781,6 +1041,7 @@ namespace KdeConnect.HostTests
             Check("fixture share payload flag", shareBack.HasPayload, "no payload");
         }
     }
+
 
     internal static class TestExtensions
     {

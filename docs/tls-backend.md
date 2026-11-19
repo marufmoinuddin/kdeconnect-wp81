@@ -143,12 +143,27 @@ validity −1y/+10y, SHA-512 (`sslhelper.cpp:178-233`, `SslHelper.kt:109-127`).
 - Its PCL profile has no package dependencies.
 - The exact members required are present and their abstract/virtual flags are
   known, so the implementation can be written against a verified surface.
+- **`Security/BouncyCastleTlsBackend.cs` compiles against the real 1.8.2
+  assembly with 0 errors / 0 warnings, and completes real mutual-TLS handshakes
+  over loopback TCP** — verified by `hosttests/` (215 assertions, all passing):
+  both role directions, peer certificate exchange, CN == deviceId on both
+  sides, byte-identical pinned certificate, application data crossing the
+  tunnel intact, and handshake timeout instead of hanging.
+
+Three defects were found *by those tests* and fixed against the matching
+`pcl-v1.8.2` source rather than by guesswork:
+
+| # | Failure | Root cause (source) | Fix |
+|---|---|---|---|
+| 1 | `internal_error(80)` | `AbstractTlsServer.MaximumVersion` defaults to **TLS 1.1**, so `IsTlsV12 != (CertificateRequest.SupportedSignatureAlgorithms != null)` (`TlsServerProtocol.cs:202`) | override `MaximumVersion` to `TLSv12` and supply the algorithm list conditionally |
+| 2 | `ArgumentException: cannot be null for (D)TLS 1.2+` | `DefaultTlsSignerCredentials.cs:36` | pass an explicit `sha256+rsa` |
+| 3 | `internal_error(80)` after `GetCredentials` | `TlsRsaKeyExchange.ProcessServerCredentials` requires `TlsEncryptionCredentials`, not a signer (`TlsRsaKeyExchange.cs:37-45`) | server uses `DefaultTlsEncryptionCredentials`; client keeps the signer for `CertificateVerify` |
 
 **NOT proven — must not be claimed until they run:**
 
-1. That VS2013 + NuGet 2.x actually restores `Portable.BouncyCastle` 1.8.2 into
-   this project and that the PCL compiles against the wpa81 reference surface.
-   → Windows build gate.
+1. That VS2013 accepts the vendored `lib/BouncyCastle.Crypto.dll` reference
+   (PCL Profile328) against the wpa81 reference surface and that the ARM binary
+   builds. → Windows build gate.
 2. That the compiled ARM binary runs the handshake on a physical phone.
    → device gate.
 3. That BC's TLS stack interoperates with Qt `QSslSocket` on the G14
@@ -161,15 +176,31 @@ Until gates 1–3 pass, direct pairing status is **BLOCKED**, not DEPLOYMENT_REA
 
 ## 5. Fallback if the package does not restore
 
-Recorded so the next action is small and specific:
+Recorded so the next action is small and specific, in preference order:
 
-1. Vendor the single `BouncyCastle.Crypto.dll` from
-   `lib/portable-net40+sl5+win8+wp8+wpa81/` into the repo as a binary
-   reference (`<Reference Include="BouncyCastle.Crypto"><HintPath>…</HintPath></Reference>`).
-   Licence (MIT) permits this; a `THIRD-PARTY-NOTICE` is required.
-2. If the PCL surface mismatches, compile Bouncy Castle's own sources into the
-   project with the portable compilation symbols — only after confirming the
-   source revision's C# language level is ≤ 5.
+1. **Vendor the single DLL.** Take `BouncyCastle.Crypto.dll` from
+   `lib/portable-net40+sl5+win8+wp8+wpa81/` of `Portable.BouncyCastle` 1.8.2 and
+   reference it directly:
+   `<Reference Include="BouncyCastle.Crypto"><HintPath>…\BouncyCastle.Crypto.dll</HintPath></Reference>`.
+   One file, no NuGet restore, no build-symbol guessing. The licence permits
+   redistribution; a `THIRD-PARTY-NOTICE` is required.
+2. **Compile Bouncy Castle from source** inside the phone project if the PCL
+   surface does not match.
 
-Option 1 is strongly preferred: it is one file, no restore, no build-symbol
-guessing.
+   *Now proven for the language level:* Bouncy Castle **1.9.0** sources
+   (`crypto/src/**`, `crypto/bzip2/**`) build with
+   `LangVersion=5`, `DefineConstants=PORTABLE;NO_THREADS`, **0 warnings / 0
+   errors** — evidence: workspace-local build log at
+   `~/.hermes/cache/scratch/bc190_csharp5/build.log`.
+
+   Two caveats keep this at option 2 rather than 1:
+   - that build targeted `netstandard2.0`, **not** `wpa81`, so BCL API
+     availability on the phone profile is still unproven;
+   - Roslyn's `LangVersion=5` is a close proxy for, but not identical to,
+     VS2013's `csc`.
+
+   Also note 1.9.0 renamed the TLS namespace to `Org.BouncyCastle.Tls`; the API
+   surface in §3.2 was dumped from **1.8.2** (`Org.BouncyCastle.Crypto.Tls`), so
+   the two paths are not interchangeable without re-dumping.
+
+Option 1 is preferred: it matches the verified API surface exactly.

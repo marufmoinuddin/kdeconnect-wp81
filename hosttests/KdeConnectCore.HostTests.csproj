@@ -22,7 +22,19 @@
 
   <ItemGroup>
     <Compile Include="..\KDEConnect.WP81\Core\**\*.cs" />
+    <Compile Include="..\KDEConnect.WP81\Transport\TlsContracts.cs" />
+    <Compile Include="..\KDEConnect.WP81\Security\**\*.cs" />
     <Compile Include="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Same Bouncy Castle version the phone project vendors as a binary
+      (lib/BouncyCastle.Crypto.dll, PCL Profile328). The netstandard2.0 build
+      of the identical 1.8.2 release is used here so the API surface exercised
+      by these tests is the one the phone will load.
+    -->
+    <PackageReference Include="Portable.BouncyCastle" Version="1.8.2" />
   </ItemGroup>
 
 </Project>

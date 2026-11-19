@@ -106,7 +106,22 @@
     <Compile Include="Core\Sanitize.cs" />
     <Compile Include="Transport\TlsContracts.cs" />
     <Compile Include="Transport\WinRtStreamAdapter.cs" />
+    <Compile Include="Security\CertificateProvider.cs" />
+    <Compile Include="Security\BouncyCastleTlsBackend.cs" />
 
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      Bouncy Castle 1.8.2, PCL Profile328 (portable-net40+sl5+win8+wp8+wpa81).
+      Vendored as a binary so the project builds with no NuGet restore; the
+      folder is the newest Bouncy Castle build that targets wpa81 at all.
+      Licence and SHA-256: see THIRD-PARTY-NOTICE.md. Evidence:
+      docs/tls-backend.md.
+    -->
+    <Reference Include="BouncyCastle.Crypto">
+      <HintPath>..\lib\BouncyCastle.Crypto.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
