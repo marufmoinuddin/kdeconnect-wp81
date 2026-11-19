@@ -105,6 +105,8 @@
     <Compile Include="Core\Redactor.cs" />
     <Compile Include="Core\Sanitize.cs" />
     <Compile Include="Transport\TlsContracts.cs" />
+    <Compile Include="Transport\WinRtTcp.cs" />
+    <Compile Include="Transport\WinRtDatagramDiscovery.cs" />
     <Compile Include="Transport\WinRtStreamAdapter.cs" />
     <Compile Include="Security\CertificateProvider.cs" />
     <Compile Include="Security\BouncyCastleTlsBackend.cs" />
