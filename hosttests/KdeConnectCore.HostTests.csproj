@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <!--
+      Host-side tests are a SEPARATE toolchain from the phone app, as required
+      by the mission brief. LangVersion is pinned to 5 so that anything that
+      compiles here is also valid for the VS2013 C# 5 compiler used for the
+      Windows Phone 8.1 build. This project must never be referenced by the
+      phone .csproj.
+    -->
+    <LangVersion>5</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>KdeConnectCore.HostTests</AssemblyName>
+    <RootNamespace>KdeConnect.HostTests</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\KDEConnect.WP81\Core\**\*.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+
+</Project>
