@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -23,9 +23,11 @@ namespace KDEConnect.WP81.Core
             "kdeconnect.systemvolume",          // sink list / volume state
             "kdeconnect.share.request",         // incoming files
             "kdeconnect.share.request.update",
-            "kdeconnect.clipboard",
-            "kdeconnect.clipboard.connect",
             "kdeconnect.findmyphone.request"
+            // Deliberately NOT advertised as incoming:
+            //  - kdeconnect.clipboard / .clipboard.connect : Windows Phone 8.1 WinRT
+            //    has no Clipboard class at all (docs/known-limitations.md L1), so a
+            //    pushed clipboard would arrive with nowhere to go.
         };
 
         /// <summary>Types we send to the peer (our outgoingCapabilities).</summary>
@@ -38,8 +40,12 @@ namespace KDEConnect.WP81.Core
             "kdeconnect.presenter",
             "kdeconnect.systemvolume.request",
             "kdeconnect.share.request",         // send files
-            "kdeconnect.clipboard",
-            "kdeconnect.clipboard.connect"
+            "kdeconnect.clipboard"              // text the operator types into our own UI
+            // Outgoing kdeconnect.clipboard is supported WITHOUT a clipboard API:
+            // the operator types the text into our own UI and we send it, which is
+            // what the desktop's clipboard plugin writes locally. We never claim to
+            // read the phone clipboard (we cannot), so .clipboard.connect is not
+            // advertised either.
         };
 
         /// <summary>

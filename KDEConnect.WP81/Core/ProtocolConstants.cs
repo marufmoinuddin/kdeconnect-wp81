@@ -1,4 +1,4 @@
-namespace KDEConnect.WP81.Core
+﻿namespace KDEConnect.WP81.Core
 {
     /// <summary>
     /// Protocol constants, all taken from the pinned upstream checkouts.

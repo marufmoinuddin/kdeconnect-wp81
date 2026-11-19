@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 
 namespace KDEConnect.WP81.Core

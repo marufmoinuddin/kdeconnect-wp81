@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using KDEConnect.WP81.Core;
@@ -649,6 +649,13 @@ namespace KdeConnect.HostTests
             Check("cap can receive pair", Capabilities.CanReceive(ProtocolConstants.PacketTypePair), "refused");
             Check("cap cannot receive sms", !Capabilities.CanReceive("kdeconnect.sms.messages"), "allowed");
             Check("cap cannot receive runcommand", !Capabilities.CanReceive("kdeconnect.runcommand"), "allowed");
+            // WP8.1 WinRT has no Clipboard class (docs/known-limitations.md L1), so a
+            // pushed clipboard would have nowhere to go: never advertise it as incoming.
+            Check("cap cannot receive clipboard", !Capabilities.CanReceive("kdeconnect.clipboard"), "allowed");
+            Check("cap cannot receive clipboard.connect", !Capabilities.CanReceive("kdeconnect.clipboard.connect"), "allowed");
+            // ...but sending operator-typed text to the desktop needs no clipboard API.
+            List<string> outCaps = Capabilities.OutgoingList();
+            Check("cap can send clipboard", outCaps.Contains("kdeconnect.clipboard"), "missing");
 
             Check("cap incoming non empty", Capabilities.Incoming.Length > 0, "empty");
             Check("cap outgoing non empty", Capabilities.Outgoing.Length > 0, "empty");

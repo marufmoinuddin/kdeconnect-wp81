@@ -92,6 +92,21 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Core\Capabilities.cs" />
+    <Compile Include="Core\DeviceInfo.cs" />
+    <Compile Include="Core\DeviceRecord.cs" />
+    <Compile Include="Core\FrameReader.cs" />
+    <Compile Include="Core\HandshakeContext.cs" />
+    <Compile Include="Core\Json.cs" />
+    <Compile Include="Core\NetworkPacket.cs" />
+    <Compile Include="Core\PairingHandler.cs" />
+    <Compile Include="Core\ProtocolConstants.cs" />
+    <Compile Include="Core\RateLimitGuard.cs" />
+    <Compile Include="Core\Redactor.cs" />
+    <Compile Include="Core\Sanitize.cs" />
+    <Compile Include="Transport\TlsContracts.cs" />
+    <Compile Include="Transport\WinRtStreamAdapter.cs" />
+
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
