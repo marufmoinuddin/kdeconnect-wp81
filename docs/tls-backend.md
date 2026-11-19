@@ -28,8 +28,20 @@ Research (archived Microsoft documentation):
 | TLS **server** on `StreamSocketListener` | **NO** | *"This support for SSL/TLS is limited to using the StreamSocket object as the client in the SSL/TLS negotiation. SSL/TLS cannot currently be used by the StreamSocketListener … since the SSL/TLS negotiation as a server is not implemented for a StreamSocket."* — <https://learn.microsoft.com/en-us/previous-versions/windows/apps/jj150597(v=win.10)> |
 | `System.Net.Security.SslStream` | **NO** | not in the ".NET for Windows Store apps" 4.5.1 surface (no `System.Net.Security`) |
 | `System.Net.Sockets` (`TcpClient`, `Socket`) | **NO** | not in the ".NET for Windows Store apps" surface |
-| Present a **client certificate** | **NO** | `StreamSocket.UpgradeToSslAsync` has no local-certificate parameter |
-| Custom validation callback | **NO** | only `StreamSocketControl.IgnorableServerCertificateErrors` (an ignore list) plus post-hoc inspection of `StreamSocketInformation.ServerCertificate` |
+| Present a **client certificate** | **NO** | *"The client support for SSL/TLS does not include the ability to use client certificates."* — <https://learn.microsoft.com/en-us/previous-versions/windows/apps/jj150597(v=win.10)> |
+| Custom validation callback | **NO** | only `StreamSocketControl.IgnorableServerCertificateErrors` (an ignore list of `ChainValidationResult`) plus post-hoc inspection of `StreamSocketInformation.ServerCertificate` — no delegate exists (`StreamSocketControl` members, archived 8.1 MSDN: <https://web.archive.org/web/20140130015622/http://msdn.microsoft.com/en-us/library/windows/apps/windows.networking.sockets.streamsocketcontrol.aspx>) |
+
+Also checked and rejected:
+
+- `HttpBaseProtocolFilter.ClientCertificate` *does* send a client certificate, but
+  only for `Windows.Web.Http` requests — not for a raw `StreamSocket`
+  (<https://learn.microsoft.com/en-us/uwp/api/windows.web.http.filters.httpbaseprotocolfilter.clientcertificate>).
+- A self-signed peer fails by default with `0x80096004` ("The signature of the
+  certificate cannot be verified"); the only lever is adding `Untrusted` to
+  `IgnorableServerCertificateErrors`, which is an ignore-list, not validation.
+- Independent confirmation that `StreamSocketListener` has no TLS server role:
+  <https://github.com/MicrosoftDocs/winrt-api/issues/1594> and the HITB 2016
+  whitepaper *The Windows Phone Freakshow*.
 | Plain TCP client / listener | **YES** | `StreamSocket`, `StreamSocketListener` |
 
 **Conclusion:** WinRT alone cannot complete a KDE Connect handshake in either
@@ -47,6 +59,7 @@ Package: **`Portable.BouncyCastle` 1.8.2** (NuGet).
 | Dependencies for that profile | **none** | `<group targetFramework=".NETPortable0.0-Profile328" />` with no children |
 | Target framework moniker | `wpa81` = Windows Phone 8.1 WinRT — the exact target of this project | folder name |
 | Licence | Bouncy Castle licence (<https://www.bouncycastle.org/csharp/licence.html>), MIT | nuspec `licenseUrl` |
+| May a wpa81 project reference a PCL at all? | **YES** | Microsoft's NuGet TFM table lists `portable-net45+win8+wpa81` (Profile111) and `portable-net45+win8+wpa81+wp8` (Profile259) as installable in a *Windows Phone 8.1 (UWP)* project — <https://learn.microsoft.com/en-us/nuget/reference/target-frameworks>; `Microsoft.Bcl` 1.1.10 really ships `lib/portable-net45+win8+wpa81` |
 | Type count in that build | 1732 | `System.Reflection.Metadata` enumeration of the DLL |
 
 Earlier versions **do** ship a `wpa81` folder (`1.7.0.1` … `1.8.2`); from

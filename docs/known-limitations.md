@@ -9,16 +9,24 @@ Generated: 2026-11-20. Companion: `docs/compatibility-matrix.md`.
 ## L1 — The phone cannot read or receive the clipboard
 
 - **Restriction:** Windows Phone 8.1 WinRT has no `Clipboard` class at all.
-  Microsoft's own statement (Microsoft Press errata for *Windows Runtime via C#*,
-  "Updates for Windows 8.1"): *"The HUGE difference is that Windows Phone does
-  not support the Clipboard class, so Windows Phone apps cannot manipulate the
-  Clipboard at all."*
+  Three independent sources agree:
+  1. Archived MSDN `Clipboard` requirements page, *Applies to: Windows 8.x and
+     Windows Phone 8.x*, **"Minimum supported phone: None supported"** —
+     <https://web.archive.org/web/20150626102847/http://msdn.microsoft.com/en-us/library/windows/apps/windows.applicationmodel.datatransfer.clipboard.aspx>
+  2. Microsoft Press errata for *Windows Runtime via C#*: *"The HUGE difference
+     is that Windows Phone does not support the Clipboard class, so Windows
+     Phone apps cannot manipulate the Clipboard at all."*
+  3. Microsoft's Silverlight→WinRT mapping page lists the Clipboard under
+     Silverlight-only APIs with *"no Windows Phone Store app equivalent"*
+     (`dn642082`).
   Microsoft's Windows-Phone WinRT type inventory lists
   `Windows.ApplicationModel.DataTransfer` types but **no `Clipboard`**.
 - **Model-specific:** yes — this is the WinRT model. Windows Phone 8.1
   *Silverlight* has `System.Windows.Clipboard`, but it is **write-only** and
   belongs to a different project model; this project is WinRT and the two
-  models must not be mixed (`wp81-reverse-porting` §0 rule 3).
+  models must not be mixed (`wp81-reverse-porting` §0 rule 3). Even switching
+  models would only buy write-only clipboard support, not the read side this
+  plugin needs.
 - **Partial alternative — yes, and it is implemented:**
   - **Outgoing works.** The operator types the text into our own UI and we send
     `kdeconnect.clipboard {content}`. The desktop's clipboard plugin writes it
