@@ -1,0 +1,12 @@
+bin/
+obj/
+AppPackages/
+BundleArtifacts/
+*.suo
+*.user
+*.pfx
+*.p12
+*.cer
+.vs/
+TestResults/
+*.log
