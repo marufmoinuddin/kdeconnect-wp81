@@ -107,6 +107,8 @@
     <Compile Include="Transport\TlsContracts.cs" />
     <Compile Include="Transport\WinRtTcp.cs" />
     <Compile Include="Transport\WinRtDatagramDiscovery.cs" />
+    <Compile Include="Transport\BufferedLineReader.cs" />
+    <Compile Include="Transport\LinkEstablisher.cs" />
     <Compile Include="Transport\WinRtStreamAdapter.cs" />
     <Compile Include="Security\CertificateProvider.cs" />
     <Compile Include="Security\BouncyCastleTlsBackend.cs" />

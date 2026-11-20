@@ -118,6 +118,27 @@ namespace KDEConnect.WP81.Core
             return Sanitize.DeviceName(input);
         }
 
+        /// <summary>
+        /// True when the peer declared it accepts this packet type. Mirrors the
+        /// gating Device::sendPacket performs on the desktop
+        /// (device.cpp:390-393).
+        /// </summary>
+        public bool Supports(string packetType)
+        {
+            if (packetType == null)
+            {
+                return false;
+            }
+            for (int i = 0; i < IncomingCapabilities.Count; i++)
+            {
+                if (string.Equals(IncomingCapabilities[i], packetType, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // ---- validation -----------------------------------------------------
 
         public static bool IsValidDeviceId(string deviceId)

@@ -52,24 +52,29 @@ namespace KDEConnect.WP81.Core
         /// </summary>
         public HandshakeDecision Evaluate()
         {
-            if (PlaintextIdentity == null)
+            // The acceptor receives a plaintext connection packet from the
+            // dialer; the dialer has no such packet when it reached us by manual
+            // IP rather than by a discovery broadcast. Plaintext consistency is
+            // therefore checked only when we actually have one - the certificate
+            // CN, validity and pinning checks below always run either way.
+            string plaintextDeviceId = null;
+            int plaintextProtocolVersion = 0;
+            if (PlaintextIdentity != null)
             {
-                Fail("no plaintext identity");
-                return HandshakeDecision.Reject;
-            }
-            if (!DeviceInfo.IsValidConnectionPacket(PlaintextIdentity) &&
-                !DeviceInfo.IsValidIdentityPacket(PlaintextIdentity))
-            {
-                Fail("invalid plaintext identity packet");
-                return HandshakeDecision.Reject;
-            }
+                if (!DeviceInfo.IsValidConnectionPacket(PlaintextIdentity) &&
+                    !DeviceInfo.IsValidIdentityPacket(PlaintextIdentity))
+                {
+                    Fail("invalid plaintext identity packet");
+                    return HandshakeDecision.Reject;
+                }
 
-            string plaintextDeviceId = PlaintextIdentity.GetString("deviceId", string.Empty);
-            int plaintextProtocolVersion = PlaintextIdentity.GetInt("protocolVersion", 0);
-            if (plaintextProtocolVersion < ProtocolConstants.ProtocolVersion)
-            {
-                Fail("protocol version " + plaintextProtocolVersion + " is below " + ProtocolConstants.ProtocolVersion);
-                return HandshakeDecision.Reject;
+                plaintextDeviceId = PlaintextIdentity.GetString("deviceId", string.Empty);
+                plaintextProtocolVersion = PlaintextIdentity.GetInt("protocolVersion", 0);
+                if (plaintextProtocolVersion < ProtocolConstants.ProtocolVersion)
+                {
+                    Fail("protocol version " + plaintextProtocolVersion + " is below " + ProtocolConstants.ProtocolVersion);
+                    return HandshakeDecision.Reject;
+                }
             }
 
             if (SecureIdentity == null)
@@ -83,19 +88,23 @@ namespace KDEConnect.WP81.Core
                 return HandshakeDecision.Reject;
             }
 
-            // lanlinkprovider.cpp:425-436
-            int secureProtocolVersion = SecureIdentity.GetInt("protocolVersion", -1);
-            if (secureProtocolVersion != plaintextProtocolVersion)
-            {
-                Fail("protocol version changed during handshake (" +
-                     plaintextProtocolVersion + " -> " + secureProtocolVersion + ")");
-                return HandshakeDecision.Reject;
-            }
+            // lanlinkprovider.cpp:425-436 - only meaningful when a plaintext
+            // counterpart exists to compare against.
             string secureDeviceId = SecureIdentity.GetString("deviceId", string.Empty);
-            if (!string.Equals(secureDeviceId, plaintextDeviceId, StringComparison.Ordinal))
+            if (plaintextDeviceId != null)
             {
-                Fail("device id changed during handshake");
-                return HandshakeDecision.Reject;
+                int secureProtocolVersion = SecureIdentity.GetInt("protocolVersion", -1);
+                if (secureProtocolVersion != plaintextProtocolVersion)
+                {
+                    Fail("protocol version changed during handshake (" +
+                         plaintextProtocolVersion + " -> " + secureProtocolVersion + ")");
+                    return HandshakeDecision.Reject;
+                }
+                if (!string.Equals(secureDeviceId, plaintextDeviceId, StringComparison.Ordinal))
+                {
+                    Fail("device id changed during handshake");
+                    return HandshakeDecision.Reject;
+                }
             }
 
             // lanlinkprovider.cpp:691-699 - the certificate must be bound to the id.

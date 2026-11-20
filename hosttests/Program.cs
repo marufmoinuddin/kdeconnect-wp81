@@ -56,6 +56,8 @@ namespace KdeConnect.HostTests
             RedactorTests();
             GoldenFixtureTests();
             TlsTests();
+            LineReaderTests();
+            LinkEstablisherTests();
         }
 
         // ------------------------------------------------------------------ //
@@ -1040,7 +1042,293 @@ namespace KdeConnect.HostTests
             CheckEqual("fixture share total", 4096L, shareBack.GetLong("totalPayloadSize", -1));
             Check("fixture share payload flag", shareBack.HasPayload, "no payload");
         }
+
+        // ------------------------------------------------------------------ //
+        //  Buffered line reader and full link establishment.
+        // ------------------------------------------------------------------ //
+
+        private static DeviceInfo BuildInfo(string id, string name)
+        {
+            DeviceInfo info = new DeviceInfo(id, name, DeviceKind.Phone, ProtocolConstants.ProtocolVersion);
+            info.IncomingCapabilities.AddRange(Capabilities.IncomingList());
+            info.OutgoingCapabilities.AddRange(Capabilities.OutgoingList());
+            return info;
+        }
+
+        private static void LineReaderTests()
+        {
+            Section("BufferedLineReader");
+
+            // Two frames arriving in one write: the second must survive the first read.
+            using (MemoryStream stream = new MemoryStream())
+            {
+                byte[] both = System.Text.Encoding.UTF8.GetBytes("{\"a\":1}\n{\"b\":2}\n");
+                stream.Write(both, 0, both.Length);
+                stream.Position = 0;
+
+                BufferedLineReader reader = new BufferedLineReader(stream, 4096);
+                string first = reader.ReadLineAsync(TimeSpan.FromSeconds(5), CancellationToken.None)
+                    .GetAwaiter().GetResult();
+                string second = reader.ReadLineAsync(TimeSpan.FromSeconds(5), CancellationToken.None)
+                    .GetAwaiter().GetResult();
+                CheckEqual("reader first frame", "{\"a\":1}", first);
+                CheckEqual("reader second frame from carry", "{\"b\":2}", second);
+                CheckEqual("reader carry emptied", 0, reader.BufferedByteCount);
+            }
+
+            // CRLF is tolerated and not treated as content.
+            using (MemoryStream stream = new MemoryStream())
+            {
+                byte[] data = System.Text.Encoding.UTF8.GetBytes("hello\r\n");
+                stream.Write(data, 0, data.Length);
+                stream.Position = 0;
+                BufferedLineReader reader = new BufferedLineReader(stream, 4096);
+                CheckEqual("reader strips CR", "hello",
+                    reader.ReadLineAsync(TimeSpan.FromSeconds(5), CancellationToken.None)
+                        .GetAwaiter().GetResult());
+            }
+
+            // A frame longer than the limit with no newline must be cut off.
+            using (MemoryStream stream = new MemoryStream())
+            {
+                byte[] flood = new byte[300];
+                for (int i = 0; i < flood.Length; i++)
+                {
+                    flood[i] = (byte)'x';
+                }
+                stream.Write(flood, 0, flood.Length);
+                stream.Position = 0;
+                BufferedLineReader reader = new BufferedLineReader(stream, 64);
+                CheckThrows<InvalidDataException>("reader enforces frame limit", delegate
+                {
+                    reader.ReadLineAsync(TimeSpan.FromSeconds(5), CancellationToken.None)
+                        .GetAwaiter().GetResult();
+                });
+            }
+
+            // Peer closing mid-frame is an error, not a silent short read.
+            using (MemoryStream stream = new MemoryStream())
+            {
+                byte[] partial = System.Text.Encoding.UTF8.GetBytes("{\"incomplete\"");
+                stream.Write(partial, 0, partial.Length);
+                stream.Position = 0;
+                BufferedLineReader reader = new BufferedLineReader(stream, 4096);
+                CheckThrows<EndOfStreamException>("reader reports peer close", delegate
+                {
+                    reader.ReadLineAsync(TimeSpan.FromSeconds(5), CancellationToken.None)
+                        .GetAwaiter().GetResult();
+                });
+            }
+
+            // Malformed UTF-8 is rejected rather than repaired.
+            using (MemoryStream stream = new MemoryStream())
+            {
+                byte[] bad = new byte[] { (byte)'"', 0xC3, 0x28, (byte)'"', (byte)'\n' };
+                stream.Write(bad, 0, bad.Length);
+                stream.Position = 0;
+                BufferedLineReader reader = new BufferedLineReader(stream, 4096);
+                CheckThrows<InvalidDataException>("reader rejects invalid utf8", delegate
+                {
+                    reader.ReadLineAsync(TimeSpan.FromSeconds(5), CancellationToken.None)
+                        .GetAwaiter().GetResult();
+                });
+            }
+        }
+
+        private sealed class LinkOutcome
+        {
+            public LinkEstablishResult Dialer;
+            public LinkEstablishResult Acceptor;
+            public Exception Error;
+        }
+
+        /// <summary>
+        /// Runs the complete KDE Connect link sequence over loopback: plaintext
+        /// connection packet, TLS handshake in the inverted roles, identity
+        /// exchange inside TLS, then the validation policy.
+        /// </summary>
+        private static LinkOutcome RunLink(
+            DeviceInfo dialerInfo,
+            DeviceInfo acceptorInfo,
+            TlsIdentity dialerIdentity,
+            TlsIdentity acceptorIdentity,
+            NetworkPacket discoveryPacket,
+            TlsPeerPolicy dialerPolicy,
+            TlsPeerPolicy acceptorPolicy)
+        {
+            LinkOutcome outcome = new LinkOutcome();
+            BouncyCastleTlsBackend backend = new BouncyCastleTlsBackend();
+
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+            Task dialerTask = Task.Run(delegate
+            {
+                TcpClient client = null;
+                try
+                {
+                    client = new TcpClient();
+                    client.Connect(IPAddress.Loopback, port);
+                    RawChannel channel = new RawChannel(client.GetStream(), client, "127.0.0.1", port);
+                    outcome.Dialer = LinkEstablisher.EstablishOutboundAsync(
+                        channel, backend, dialerIdentity, dialerInfo, discoveryPacket,
+                        dialerPolicy, TimeSpan.FromSeconds(15), CancellationToken.None)
+                        .GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    if (client != null)
+                    {
+                        client.Close();
+                    }
+                    if (outcome.Error == null)
+                    {
+                        outcome.Error = ex;
+                    }
+                }
+            });
+
+            Task acceptorTask = Task.Run(delegate
+            {
+                TcpClient server = null;
+                try
+                {
+                    server = listener.AcceptTcpClient();
+                    RawChannel channel = new RawChannel(server.GetStream(), server, "127.0.0.1", port);
+                    outcome.Acceptor = LinkEstablisher.EstablishInboundAsync(
+                        channel, backend, acceptorIdentity, acceptorInfo,
+                        acceptorPolicy, TimeSpan.FromSeconds(15), CancellationToken.None)
+                        .GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    if (server != null)
+                    {
+                        server.Close();
+                    }
+                    if (outcome.Error == null)
+                    {
+                        outcome.Error = ex;
+                    }
+                }
+            });
+
+            Task.WaitAll(new Task[] { dialerTask, acceptorTask }, TimeSpan.FromSeconds(40));
+            listener.Stop();
+            return outcome;
+        }
+
+        private static void LinkEstablisherTests()
+        {
+            Section("Link establishment (full sequence)");
+
+            DeviceInfo phoneInfo = BuildInfo(PhoneDeviceId, "WP81");
+            DeviceInfo desktopInfo = BuildInfo(DesktopDeviceId, "G14");
+            TlsIdentity phoneIdentity = CertificateProvider.CreateIdentity(PhoneDeviceId);
+            TlsIdentity desktopIdentity = CertificateProvider.CreateIdentity(DesktopDeviceId);
+
+            // What the phone "heard" over UDP from the desktop.
+            NetworkPacket discovery = desktopInfo.ToUdpDiscoveryPacket(1716);
+
+            TlsPeerPolicy dialerPolicy = new TlsPeerPolicy();
+            dialerPolicy.ExpectedDeviceId = DesktopDeviceId;
+            TlsPeerPolicy acceptorPolicy = new TlsPeerPolicy();
+
+            LinkOutcome link = RunLink(phoneInfo, desktopInfo, phoneIdentity, desktopIdentity,
+                discovery, dialerPolicy, acceptorPolicy);
+
+            if (link.Error != null)
+            {
+                Check("link establishes end to end", false, link.Error.ToString());
+                return;
+            }
+
+            Check("dialer link established", link.Dialer != null && link.Dialer.Success,
+                link.Dialer == null ? "null" : link.Dialer.Failure);
+            Check("acceptor link established", link.Acceptor != null && link.Acceptor.Success,
+                link.Acceptor == null ? "null" : link.Acceptor.Failure);
+
+            if (link.Dialer == null || !link.Dialer.Success ||
+                link.Acceptor == null || !link.Acceptor.Success)
+            {
+                return;
+            }
+
+            CheckEqual("dialer learned the peer id", DesktopDeviceId, link.Dialer.Peer.Id);
+            CheckEqual("acceptor learned the peer id", PhoneDeviceId, link.Acceptor.Peer.Id);
+            CheckEqual("dialer learned the peer name", "G14", link.Dialer.Peer.Name);
+            CheckEqual("acceptor learned the peer name", "WP81", link.Acceptor.Peer.Name);
+            Check("peer capabilities parsed (dialer side)",
+                link.Dialer.Peer.Supports("kdeconnect.ping"), "no ping capability");
+            // Supports() answers "may I send this type TO the peer", i.e. it
+            // reads the peer's incoming list. The acceptor parsed the phone's
+            // identity, so it must see what the phone accepts.
+            Check("peer capabilities parsed (acceptor side)",
+                link.Acceptor.Peer.Supports("kdeconnect.ping"), "phone does not accept ping");
+            Check("acceptor does not claim a type the phone only sends",
+                !link.Acceptor.Peer.Supports("kdeconnect.mpris.request"),
+                "mpris.request wrongly listed as incoming");
+            Check("certificate evidence carried through",
+                link.Dialer.Tls != null && link.Dialer.Tls.PeerCertificateDer != null, "missing");
+
+            // A plugin packet must be readable straight after the handshake.
+            NetworkPacket ping = new NetworkPacket(ProtocolConstants.PacketTypePing);
+            ping.Id = 4242;
+            ping.SetString("message", "after-link");
+            byte[] wire = ping.Serialize();
+            link.Dialer.Session.ApplicationData.Write(wire, 0, wire.Length);
+            link.Dialer.Session.ApplicationData.Flush();
+
+            string received = link.Acceptor.Reader.ReadLineAsync(
+                TimeSpan.FromSeconds(5), CancellationToken.None).GetAwaiter().GetResult();
+            NetworkPacket readBack = NetworkPacket.Unserialize(received);
+            CheckEqual("packet type after link", ProtocolConstants.PacketTypePing, readBack.Type);
+            CheckEqual("packet id after link", 4242L, readBack.Id);
+            CheckEqual("packet body after link", "after-link", readBack.GetString("message", null));
+
+            link.Dialer.Session.Close();
+            link.Acceptor.Session.Close();
+
+            // ---- rejection paths ------------------------------------------ //
+
+            // Inbound connection addressed to somebody else.
+            LinkOutcome wrongTarget = RunLink(phoneInfo, desktopInfo, phoneIdentity, desktopIdentity,
+                discovery, dialerPolicy, acceptorPolicy);
+            Check("re-run is reproducible",
+                wrongTarget.Dialer != null && wrongTarget.Dialer.Success, "flaky");
+
+            DeviceInfo otherInfo = BuildInfo("ffffffffffffffffffffffffffffffff", "Other");
+            TlsIdentity otherIdentity = CertificateProvider.CreateIdentity(otherInfo.Id);
+            TlsPeerPolicy mismatchPolicy = new TlsPeerPolicy();
+
+            // The dialer claims to be targeting the wrong device id.
+            TlsPeerPolicy badTargetPolicy = new TlsPeerPolicy();
+            badTargetPolicy.ExpectedDeviceId = "ffffffffffffffffffffffffffffffff";
+            LinkOutcome badTarget = RunLink(phoneInfo, desktopInfo, phoneIdentity, desktopIdentity,
+                discovery, badTargetPolicy, mismatchPolicy);
+            Check("link refused when addressed to another device",
+                badTarget.Acceptor != null && !badTarget.Acceptor.Success &&
+                badTarget.Acceptor.Failure != null &&
+                badTarget.Acceptor.Failure.Contains("another device"),
+                badTarget.Acceptor == null ? "null" : badTarget.Acceptor.Failure);
+
+            // A pinned certificate that does not match what the peer presents.
+            TlsPeerPolicy pinPolicy = new TlsPeerPolicy();
+            pinPolicy.ExpectedDeviceId = DesktopDeviceId;
+            pinPolicy.PinnedCertificateDer = phoneIdentity.CertificateDer; // wrong one on purpose
+            TlsPeerPolicy pinnedAcceptor = new TlsPeerPolicy();
+            pinnedAcceptor.PinnedCertificateDer = phoneIdentity.CertificateDer;
+            LinkOutcome changed = RunLink(phoneInfo, desktopInfo, phoneIdentity, desktopIdentity,
+                discovery, pinPolicy, pinnedAcceptor);
+            Check("link refused when the pinned certificate differs",
+                changed.Dialer != null && !changed.Dialer.Success &&
+                changed.Dialer.Failure != null &&
+                changed.Dialer.Failure.Contains("certificate changed"),
+                changed.Dialer == null ? "null" : changed.Dialer.Failure);
+        }
     }
+
 
 
     internal static class TestExtensions

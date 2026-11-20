@@ -22,7 +22,11 @@
 
   <ItemGroup>
     <Compile Include="..\KDEConnect.WP81\Core\**\*.cs" />
+    <!-- Portable transport only. WinRtTcp.cs and WinRtDatagramDiscovery.cs
+         reference Windows.* types and cannot compile off-device. -->
     <Compile Include="..\KDEConnect.WP81\Transport\TlsContracts.cs" />
+    <Compile Include="..\KDEConnect.WP81\Transport\BufferedLineReader.cs" />
+    <Compile Include="..\KDEConnect.WP81\Transport\LinkEstablisher.cs" />
     <Compile Include="..\KDEConnect.WP81\Security\**\*.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
