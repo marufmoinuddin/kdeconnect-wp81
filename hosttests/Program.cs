@@ -58,6 +58,7 @@ namespace KdeConnect.HostTests
             TlsTests();
             LineReaderTests();
             LinkEstablisherTests();
+            DeviceStoreTests();
         }
 
         // ------------------------------------------------------------------ //
@@ -1327,6 +1328,114 @@ namespace KdeConnect.HostTests
                 changed.Dialer.Failure.Contains("certificate changed"),
                 changed.Dialer == null ? "null" : changed.Dialer.Failure);
         }
+
+
+        // ------------------------------------------------------------------ //
+        //  Persistence: own identity and paired peers must survive a restart.
+        // ------------------------------------------------------------------ //
+
+        private static void DeviceStoreTests()
+        {
+            Section("DeviceStore (persistence)");
+
+            MemoryBlobStore blobs = new MemoryBlobStore();
+            DeviceStore store = new DeviceStore(blobs);
+
+            // Nothing stored yet -> caller must generate one.
+            Check("identity absent before first run",
+                store.LoadOrCreateIdentity(PhoneDeviceId, "WP81") == null, "returned one");
+
+            DeviceStore.OwnIdentity own = new DeviceStore.OwnIdentity();
+            own.DeviceId = PhoneDeviceId;
+            own.DeviceName = "WP81";
+            own.CertificateDer = CertificateProvider.CreateIdentity(PhoneDeviceId).CertificateDer;
+            own.PrivateKeyDer = CertificateProvider.CreateIdentity(PhoneDeviceId).PrivateKeyDer;
+            store.SaveIdentity(own);
+
+            DeviceStore.OwnIdentity reloaded = store.LoadOrCreateIdentity(PhoneDeviceId, "WP81");
+            Check("identity survives a reload", reloaded != null, "null");
+            CheckEqual("reloaded device id", PhoneDeviceId, reloaded.DeviceId);
+            Check("reloaded certificate identical",
+                BytesEqual(own.CertificateDer, reloaded.CertificateDer), "different");
+            Check("reloaded private key identical",
+                BytesEqual(own.PrivateKeyDer, reloaded.PrivateKeyDer), "different");
+
+            // A stored identity for a DIFFERENT device id must not be reused:
+            // its CN would not match and the peer would reject the handshake.
+            DeviceStore otherStore = new DeviceStore(new MemoryBlobStore());
+            DeviceStore.OwnIdentity foreign = new DeviceStore.OwnIdentity();
+            foreign.DeviceId = DesktopDeviceId;
+            foreign.CertificateDer = own.CertificateDer;
+            foreign.PrivateKeyDer = own.PrivateKeyDer;
+            otherStore.SaveIdentity(foreign);
+            Check("identity for another device id is not reused",
+                otherStore.LoadOrCreateIdentity(PhoneDeviceId, "WP81") == null, "reused");
+
+            // Corrupt identity must degrade to "regenerate", never throw.
+            MemoryBlobStore corruptBlobs = new MemoryBlobStore();
+            corruptBlobs.Write(DeviceStore.IdentityFileName,
+                System.Text.Encoding.UTF8.GetBytes("{ not json at all"));
+            DeviceStore corrupt = new DeviceStore(corruptBlobs);
+            Check("corrupt identity degrades gracefully",
+                corrupt.LoadOrCreateIdentity(PhoneDeviceId, "WP81") == null, "did not degrade");
+
+            // Peers: insert, find, replace without duplicating.
+            DeviceRecord desktop = new DeviceRecord();
+            desktop.DeviceId = DesktopDeviceId;
+            desktop.DeviceName = "G14";
+            desktop.IsPaired = true;
+            desktop.PinnedCertificateDer = new byte[] { 1, 2, 3 };
+            desktop.IncomingCapabilities.Add("kdeconnect.ping");
+            store.UpsertPeer(desktop);
+
+            Check("peer found after insert", store.FindPeer(DesktopDeviceId) != null, "missing");
+            Check("unknown peer not found", store.FindPeer(PhoneDeviceId) == null, "found");
+
+            desktop.DeviceName = "G14 (renamed)";
+            store.UpsertPeer(desktop);
+            CheckEqual("upsert replaces instead of duplicating", 1, store.LoadPeers().Count);
+            CheckEqual("upsert keeps the new name", "G14 (renamed)",
+                store.FindPeer(DesktopDeviceId).DeviceName);
+
+            // A fresh store instance over the same blobs sees the same peers:
+            // this is what makes pairing survive an app restart.
+            DeviceStore reopened = new DeviceStore(blobs);
+            DeviceRecord persisted = reopened.FindPeer(DesktopDeviceId);
+            Check("peers survive a reopen", persisted != null, "missing");
+            Check("pin survives a reopen", persisted != null &&
+                persisted.PinnedCertificateDer != null &&
+                persisted.PinnedCertificateDer.Length == 3, "pin lost");
+            Check("capabilities survive a reopen", persisted != null &&
+                persisted.Supports("kdeconnect.ping"), "capabilities lost");
+
+            // Unpairing must destroy the trust record.
+            Check("remove returns true", reopened.RemovePeer(DesktopDeviceId), "false");
+            Check("peer gone after remove", reopened.FindPeer(DesktopDeviceId) == null, "still there");
+            Check("pin gone after remove", reopened.FindPeer(DesktopDeviceId) == null, "pin retained");
+            Check("remove of unknown peer returns false", !reopened.RemovePeer("x"), "true");
+
+            // Corrupt peer file degrades to an empty list instead of throwing.
+            MemoryBlobStore badPeers = new MemoryBlobStore();
+            badPeers.Write(DeviceStore.PeersFileName,
+                System.Text.Encoding.UTF8.GetBytes("[[[["));
+            DeviceStore degraded = new DeviceStore(badPeers);
+            CheckEqual("corrupt peer file degrades to empty", 0, degraded.LoadPeers().Count);
+
+            // Invalid device ids are refused on write.
+            CheckThrows<ArgumentException>("invalid device id refused on upsert", delegate
+            {
+                DeviceRecord bad = new DeviceRecord();
+                bad.DeviceId = "nope";
+                store.UpsertPeer(bad);
+            });
+
+            // Clear wipes both files.
+            reopened.Clear();
+            Check("clear removes identity", reopened.LoadOrCreateIdentity(PhoneDeviceId, "WP81") == null,
+                "identity survived");
+            CheckEqual("clear removes peers", 0, reopened.LoadPeers().Count);
+        }
+
     }
 
 

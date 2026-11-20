@@ -104,6 +104,7 @@
     <Compile Include="Core\RateLimitGuard.cs" />
     <Compile Include="Core\Redactor.cs" />
     <Compile Include="Core\Sanitize.cs" />
+    <Compile Include="Core\DeviceStore.cs" />
     <Compile Include="Transport\TlsContracts.cs" />
     <Compile Include="Transport\WinRtTcp.cs" />
     <Compile Include="Transport\WinRtDatagramDiscovery.cs" />
