@@ -118,8 +118,11 @@ namespace KDEConnect.WP81.Pages
             finally
             {
                 PairButton.IsEnabled = true;
-                await RefreshAsync();
             }
+
+            // Refresh AFTER the finally block: 'await' in a finally clause is
+            // C# 6, and this project must compile as C# 5 under VS2013.
+            await RefreshAsync();
         }
 
         private async Task ShowPairingDialogAsync()

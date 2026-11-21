@@ -64,7 +64,7 @@ namespace KDEConnect.WP81.Pages
                 if (_deviceManager.IsConnecting(p.DeviceId)) status += ", connecting";
                 sb.AppendLine("  " + Redactor.RedactDeviceId(p.DeviceId) + " - " + status);
                 if (p.PinnedCertificateDer != null && p.PinnedCertificateDer.Length > 0)
-                    sb.AppendLine("    Pin: " + Redactor.HashSha256(p.PinnedCertificateDer));
+                    sb.AppendLine("    Pin: " + Redactor.CertificateFingerprint(p.PinnedCertificateDer, 8));
             }
             sb.AppendLine();
 
@@ -129,14 +129,14 @@ namespace KDEConnect.WP81.Pages
                 string content = sb.ToString();
                 string fileName = "kdeconnect-diagnostics-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".txt";
 
-                // DocumentsLibrary needs the documentsLibrary capability, which
-                // a Windows Phone Store app cannot declare (inventory line 227).
-                // DownloadsFolder self-created files need no capability (S13).
-                StorageFile file = await DownloadsFolder.CreateFileAsync(
+                // LocalFolder: DocumentsLibrary needs an undeclarable capability
+                // and DownloadsFolder is absent from the WP8.1 surface.
+                StorageFolder local = ApplicationData.Current.LocalFolder;
+                StorageFile file = await local.CreateFileAsync(
                     fileName, CreationCollisionOption.GenerateUniqueName);
                 await FileIO.WriteTextAsync(file, content);
 
-                ExportResultText.Text = "Saved to Documents\\" + fileName;
+                ExportResultText.Text = "Saved to " + file.Path;
             }
             catch (Exception ex)
             {

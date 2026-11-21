@@ -135,14 +135,19 @@ namespace KDEConnect.WP81.Pages
                 string content = sb.ToString();
                 string fileName = "kdeconnect-diagnostics-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".txt";
 
-                // DocumentsLibrary needs the documentsLibrary capability, which
-                // a Windows Phone Store app cannot declare (inventory line 227).
-                // DownloadsFolder self-created files need no capability (S13).
-                StorageFile file = await DownloadsFolder.CreateFileAsync(
+                // Neither option the docs suggest is usable here:
+                //   KnownFolders.DocumentsLibrary needs documentsLibrary, which a
+                //   Phone Store app cannot declare (inventory line 227);
+                //   Windows.Storage.DownloadsFolder does not exist in the WP8.1
+                //   surface at all (CS0103).
+                // ApplicationData.Current.LocalFolder always exists and needs no
+                // capability. The path is shown so it can be pulled off-device.
+                StorageFolder local = ApplicationData.Current.LocalFolder;
+                StorageFile file = await local.CreateFileAsync(
                     fileName, CreationCollisionOption.GenerateUniqueName);
                 await FileIO.WriteTextAsync(file, content);
 
-                DiagnosticsResultText.Text = "Saved to Documents\\" + fileName;
+                DiagnosticsResultText.Text = "Saved to " + file.Path;
             }
             catch (Exception ex)
             {

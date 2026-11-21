@@ -43,7 +43,11 @@ namespace KDEConnect.WP81.Services
 
         public PluginManager(LinkManager linkManager)
         {
-            _linkManager = linkManager ?? throw new ArgumentNullException("linkManager");
+            if (linkManager == null)
+            {
+                throw new ArgumentNullException("linkManager");
+            }
+            _linkManager = linkManager;
             _linkManager.PacketReceived += OnPacketReceived;
         }
 
