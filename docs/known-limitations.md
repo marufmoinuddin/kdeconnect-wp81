@@ -147,3 +147,34 @@ Generated: 2026-11-20. Companion: `docs/compatibility-matrix.md`.
 - **Partial alternative:** reintroduce individual keys only after confirming
   them on the device; a missing key is a runtime crash, not a build error, so
   it cannot be caught by the compiler.
+
+## L10 — Members verified absent / present on the Phone 8.1 surface
+
+Each "absent" entry below cost a Windows round-trip to discover, because none of
+them can be caught without the phone SDK. They are recorded so they are not
+re-learned.
+
+**Confirmed ABSENT on Windows Phone 8.1** (desktop/UWP has them):
+
+| Member | Failure |
+|---|---|
+| `{ThemeResource *TextBlockStyle}` (`Caption`, `Body`, `Subheader`, `Header`, `Title`) | runtime `XamlParseException: Cannot find a Resource with the Name/Key ...` while building the page — see L9 |
+| `{ThemeResource AppBarBackgroundThemeBrush}` | avoided for the same reason |
+| `ContentDialog.DefaultButton` | `CS1061` |
+| `ContentDialogButton` (enum) | `CS0103` |
+| `Windows.Storage.DownloadsFolder` | `CS0103` — the class does not exist at all |
+| `Windows.ApplicationModel.Core.CoreApplication.RequestRestartAsync` | UWP only |
+| `KnownFolders.DocumentsLibrary` | reachable only with `documentsLibrary`, which a Phone Store app cannot declare |
+
+**Confirmed PRESENT and working in this app** (safe to use):
+
+`ContentDialog.PrimaryButtonText`, `ContentDialog.SecondaryButtonText`,
+`ContentDialogButtonClickEventArgs`, `TextBox.PlaceholderText`,
+`TextBox.AcceptsReturn`, `CommandBar.ClosedDisplayMode`,
+`CommandBar.PrimaryCommands`, `ListView.IsItemClickEnabled`,
+`TextBlock.CharacterSpacing`, `ManipulationMode`/`ManipulationDelta`,
+`Tapped`/`DoubleTapped`, `Slider.StepFrequency`, `ProgressRing.IsActive`,
+`{ThemeResource ApplicationPageBackgroundThemeBrush}`.
+
+Nothing here is inferred from documentation; the "present" list is what this
+build actually renders on a Nokia device.

@@ -195,7 +195,8 @@ namespace KDEConnect.WP81.Pages
             dialog.Content = content;
             dialog.PrimaryButtonText = "Announce to it";
             dialog.SecondaryButtonText = "Cancel";
-            dialog.DefaultButton = ContentDialogButton.Primary;
+            // DefaultButton / ContentDialogButton are Windows 10 additions and
+            // are absent from the Phone 8.1 surface (CS1061 / CS0103).
 
             ContentDialogResult result = await dialog.ShowAsync();
             if (result != ContentDialogResult.Primary)
