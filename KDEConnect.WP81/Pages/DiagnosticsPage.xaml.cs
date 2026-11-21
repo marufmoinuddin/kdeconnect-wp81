@@ -126,7 +126,10 @@ namespace KDEConnect.WP81.Pages
                 string content = sb.ToString();
                 string fileName = "kdeconnect-diagnostics-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".txt";
 
-                StorageFile file = await KnownFolders.DocumentsLibrary.CreateFileAsync(
+                // DocumentsLibrary needs the documentsLibrary capability, which
+                // a Windows Phone Store app cannot declare (inventory line 227).
+                // DownloadsFolder self-created files need no capability (S13).
+                StorageFile file = await DownloadsFolder.CreateFileAsync(
                     fileName, CreationCollisionOption.GenerateUniqueName);
                 await FileIO.WriteTextAsync(file, content);
 
