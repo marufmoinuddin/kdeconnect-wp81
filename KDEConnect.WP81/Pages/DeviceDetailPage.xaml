@@ -1,0 +1,98 @@
+﻿<Page
+    x:Class="KDEConnect.WP81.Pages.DeviceDetailPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:KDEConnect.WP81"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Page.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with device name -->
+        <StackPanel Grid.Row="0" Margin="12,8">
+            <TextBlock x:Name="DeviceNameText" Style="{ThemeResource HeaderTextBlockStyle}"/>
+            <TextBlock x:Name="DeviceIdText" Style="{ThemeResource SubheaderTextBlockStyle}" Opacity="0.6" Margin="0,4,0,0"/>
+            <TextBlock x:Name="StatusText" Style="{ThemeResource BodyTextBlockStyle}" Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="12,0,12,12">
+            <StackPanel>
+                <!-- Connection section -->
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Connection" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Address:" Width="100" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="AddressText" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <TextBlock Text="TCP Port:" Width="100" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="PortText" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <TextBlock Text="Status:" Width="100" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ConnectionStatusText" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Pairing section -->
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Pairing" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Paired:" Width="100" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="PairedText" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <TextBlock Text="Certificate pinned:" Width="100" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="PinnedText" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button x:Name="PairButton" Content="Pair" Click="OnPairClick" Margin="0,12,0,0" Visibility="Collapsed"/>
+                        <Button x:Name="UnpairButton" Content="Unpair" Click="OnUnpairClick" Margin="0,8,0,0" Background="Red" Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Capabilities section -->
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Capabilities" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <StackPanel x:Name="IncomingCapsPanel" Margin="0,8,0,0">
+                            <TextBlock Text="Receives (Incoming):" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                        </StackPanel>
+                        <StackPanel x:Name="OutgoingCapsPanel" Margin="0,8,0,0">
+                            <TextBlock Text="Sends (Outgoing):" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Test actions -->
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Test Actions" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <Button x:Name="PingButton" Content="Send Ping" Click="OnPingClick" Margin="0,8,0,0" IsEnabled="False"/>
+                        <TextBlock x:Name="PingResultText" Margin="0,8,0,0" Style="{ThemeResource BodyTextBlockStyle}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Page.BottomAppBar>
+            <CommandBar ClosedDisplayMode="Minimal">
+                <CommandBar.PrimaryCommands>
+                    <AppBarButton Icon="Refresh" Label="Refresh" Click="OnRefreshClick"/>
+                </CommandBar.PrimaryCommands>
+            </CommandBar>
+        </Page.BottomAppBar>
+    </Grid>
+</Page>

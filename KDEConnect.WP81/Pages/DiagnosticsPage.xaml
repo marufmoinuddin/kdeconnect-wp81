@@ -1,0 +1,48 @@
+﻿<Page
+    x:Class="KDEConnect.WP81.Pages.DiagnosticsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:KDEConnect.WP81"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="12,8">
+            <TextBlock Text="Diagnostics" Style="{ThemeResource HeaderTextBlockStyle}"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="12,0,12,12">
+            <StackPanel>
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Live Diagnostics" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock x:Name="LiveText" Style="{ThemeResource BodyTextBlockStyle}" FontFamily="Consolas" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <Button x:Name="RefreshLiveButton" Content="Refresh" Click="OnRefreshLiveClick" Margin="0,12,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Export Full Diagnostics" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <Button x:Name="ExportButton" Content="Export to Documents" Click="OnExportClick" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="ExportResultText" Margin="0,8,0,0" Style="{ThemeResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Recent Log (last 100 entries)" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock x:Name="LogText" Style="{ThemeResource BodyTextBlockStyle}" FontFamily="Consolas" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

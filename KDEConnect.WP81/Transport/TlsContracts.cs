@@ -90,6 +90,31 @@ namespace KDEConnect.WP81.Transport
         public byte[] CertificateDer { get; set; }
         public byte[] PrivateKeyDer { get; set; }
         public string DeviceId { get; set; }
+
+        /// <summary>
+        /// Extracts the public key DER from the certificate. Used for pairing
+        /// verification code computation (PairingHandler.ComputeVerificationCode).
+        /// </summary>
+        public byte[] PublicKeyDer
+        {
+            get
+            {
+                if (CertificateDer == null || CertificateDer.Length == 0)
+                    return null;
+                try
+                {
+                    var parser = new Org.BouncyCastle.X509.X509CertificateParser();
+                    var cert = parser.ReadCertificate(CertificateDer);
+                    var pubKey = cert.GetPublicKey();
+                    var spki = Org.BouncyCastle.X509.SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(pubKey);
+                    return spki.GetDerEncoded();
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+        }
     }
 
     /// <summary>
