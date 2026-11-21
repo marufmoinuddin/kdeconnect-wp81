@@ -76,6 +76,14 @@ namespace KDEConnect.WP81.Pages
             sb.AppendLine("Advertised Outgoing:");
             foreach (var c in _deviceManager.AdvertisedOutgoing) sb.AppendLine("  " + c);
 
+            string trace = ((App)App.Current).GetStartupTraceTail();
+            if (!string.IsNullOrEmpty(trace))
+            {
+                sb.AppendLine();
+                sb.AppendLine("=== Startup trace (previous run) ===");
+                sb.AppendLine(trace);
+            }
+
             LiveText.Text = sb.ToString();
         }
 

@@ -225,6 +225,35 @@ namespace KDEConnect.WP81
             }
         }
 
+        /// <summary>
+        /// Only real problems, for the launch-time dialog. A startup trace alone
+        /// is not a problem and must not interrupt the user on every launch.
+        /// </summary>
+        public string GetErrorSummary()
+        {
+            StringBuilder sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(StartupError))
+            {
+                sb.AppendLine("Error: " + StartupError);
+                sb.AppendLine();
+            }
+            if (StartupWarnings != null && StartupWarnings.Count > 0)
+            {
+                sb.AppendLine("Warnings:");
+                for (int i = 0; i < StartupWarnings.Count; i++)
+                {
+                    sb.AppendLine("  - " + StartupWarnings[i]);
+                }
+            }
+            return sb.ToString().Trim();
+        }
+
+        /// <summary>Tail of the previous launch's breadcrumbs, for Diagnostics.</summary>
+        public string GetStartupTraceTail()
+        {
+            return TailLines(CrashLog.ReadStartupTrace() ?? string.Empty, 20);
+        }
+
         /// <summary>Everything the UI should show about startup problems.</summary>
         public string GetDiagnosticsSummary()
         {
@@ -329,6 +358,7 @@ namespace KDEConnect.WP81
                     own.CertificateDer = minted.CertificateDer;
                     own.PrivateKeyDer = minted.PrivateKeyDer;
                     DeviceStore.SaveIdentity(own);
+                    CrashLog.Trace("init: identity saved");
                 }
             }
             catch (Exception ex)

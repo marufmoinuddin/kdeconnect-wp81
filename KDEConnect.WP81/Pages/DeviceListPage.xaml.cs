@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -59,6 +60,62 @@ namespace KDEConnect.WP81.Pages
             }
         }
 
+        /// <summary>
+        /// One string for the second line. Composing it here keeps the XAML to
+        /// plain Text bindings - no converter, no brush, nothing that can fail
+        /// while the template is being realised.
+        /// </summary>
+        public string Subtitle
+        {
+            get
+            {
+                string text = DeviceId;
+                string status = StatusText;
+                if (!string.IsNullOrEmpty(status))
+                {
+                    text += "  -  " + status;
+                }
+                string caps = CapabilitySummary();
+                if (caps.Length > 0)
+                {
+                    text += "  -  " + caps;
+                }
+                return text;
+            }
+        }
+
+        private string CapabilitySummary()
+        {
+            StringBuilder sb = new StringBuilder();
+            Append(sb, IncomingCapabilities, "kdeconnect.ping", "ping");
+            Append(sb, IncomingCapabilities, "kdeconnect.battery", "battery");
+            Append(sb, IncomingCapabilities, "kdeconnect.mpris", "media");
+            Append(sb, IncomingCapabilities, "kdeconnect.mousepad.request", "touchpad");
+            Append(sb, IncomingCapabilities, "kdeconnect.systemvolume", "volume");
+            Append(sb, IncomingCapabilities, "kdeconnect.share.request", "files");
+            return sb.ToString();
+        }
+
+        private static void Append(StringBuilder sb, List<string> caps, string type, string label)
+        {
+            if (caps == null)
+            {
+                return;
+            }
+            for (int i = 0; i < caps.Count; i++)
+            {
+                if (string.Equals(caps[i], type, StringComparison.Ordinal))
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Append(", ");
+                    }
+                    sb.Append(label);
+                    return;
+                }
+            }
+        }
+
         public bool HasPing { get { return IncomingCapabilities != null && IncomingCapabilities.Contains("kdeconnect.ping"); } }
         public bool HasBattery { get { return IncomingCapabilities != null && IncomingCapabilities.Contains("kdeconnect.battery"); } }
         public bool HasFileTransfer { get { return IncomingCapabilities != null && IncomingCapabilities.Contains("kdeconnect.file"); } }
@@ -90,6 +147,7 @@ namespace KDEConnect.WP81.Pages
             this.InitializeComponent();
             this.NavigationCacheMode = NavigationCacheMode.Required;
 
+            CrashLog.Trace("list: ctor");
             _deviceManager = ((App)App.Current).DeviceManager;
             DeviceListView.ItemsSource = _items;
 
@@ -109,10 +167,11 @@ namespace KDEConnect.WP81.Pages
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
+            CrashLog.Trace("list: loaded");
             try
             {
                 App app = (App)App.Current;
-                string diag = app.GetDiagnosticsSummary();
+                string diag = app.GetErrorSummary();
                 if (!string.IsNullOrEmpty(diag))
                 {
                     // Startup problems must be visible, not silent. This is how
@@ -146,9 +205,16 @@ namespace KDEConnect.WP81.Pages
 
         private void OnDeviceListChanged(object sender, EventArgs e)
         {
-            Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+            Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, delegate
             {
-                RefreshDeviceListAsync();
+                try
+                {
+                    Task ignored = RefreshDeviceListAsync();
+                }
+                catch (Exception ex)
+                {
+                    CrashLog.Record("device list changed", ex);
+                }
             }).AsTask().ConfigureAwait(false);
         }
 
@@ -263,16 +329,21 @@ namespace KDEConnect.WP81.Pages
 
         private async Task RefreshDeviceListAsync()
         {
+            CrashLog.Trace("refresh: start");
             RefreshRing.IsActive = true;
             RefreshButton.IsEnabled = false;
 
             try
             {
                 await _deviceManager.StartDiscoveryAsync();
+                CrashLog.Trace("refresh: discovery listening");
                 await _deviceManager.RefreshAsync();
+                CrashLog.Trace("refresh: announced");
                 await Task.Delay(1500); // give peers time to answer
+                CrashLog.Trace("refresh: delay done");
 
                 List<DeviceRecord> records = _deviceManager.GetAllDevices();
+                CrashLog.Trace("refresh: devices=" + records.Count);
                 _items.Clear();
                 foreach (var r in records.OrderBy(r => r.DeviceName ?? r.DeviceId))
                 {
@@ -293,11 +364,35 @@ namespace KDEConnect.WP81.Pages
 
                 EmptyState.Visibility = _items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
                 DeviceListView.Visibility = _items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                CrashLog.Trace("refresh: bound " + _items.Count + " items");
+            }
+            catch (Exception ex)
+            {
+                // A failure here must be visible: this is where the app has been
+                // dying, and an unhandled async-void neighbour would take the
+                // process down with no message.
+                CrashLog.Record("refresh", ex);
+                StatusLine(ex);
             }
             finally
             {
                 RefreshRing.IsActive = false;
                 RefreshButton.IsEnabled = true;
+                CrashLog.Trace("refresh: end");
+            }
+        }
+
+        /// <summary>Puts a failure somewhere the operator can see it.</summary>
+        private void StatusLine(Exception ex)
+        {
+            try
+            {
+                EmptyState.Visibility = Visibility.Visible;
+                DeviceListView.Visibility = Visibility.Collapsed;
+                OwnDeviceName.Text = "error: " + (ex == null ? "?" : ex.Message);
+            }
+            catch (Exception)
+            {
             }
         }
 

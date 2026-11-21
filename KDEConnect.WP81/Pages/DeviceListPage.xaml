@@ -2,77 +2,42 @@
     x:Class="KDEConnect.WP81.Pages.DeviceListPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:KDEConnect.WP81"
-    xmlns:pages="using:KDEConnect.WP81.Pages"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
+    <!--
+      Deliberately plain.
+
+      The previous template bound Visibility through a value converter and a
+      Brush through a computed property. Each of those is a way for a page to
+      fail at runtime in a manner no compiler sees, and this is the page where
+      the app has been dying. Now: two TextBlocks, two string bindings, no
+      converter, no brush, no theme style.
+    -->
     <Page.Resources>
-        <!-- Declared before the templates that use it: a StaticResource
-             cannot forward-reference a key defined later in the file. -->
-        <pages:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <DataTemplate x:Key="DeviceItemTemplate">
-            <Grid Margin="12,8" Tapped="OnDeviceTapped" Tag="{Binding DeviceId}">
+            <Grid Margin="12,10" Tapped="OnDeviceTapped" Tag="{Binding DeviceId}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
 
-                <!-- Device icon -->
-                <TextBlock Grid.Row="0" Grid.Column="0" Grid.RowSpan="2"
-                    Text="&#xE133;" FontFamily="Segoe UI Symbol" FontSize="32"
-                    VerticalAlignment="Center" Margin="0,0,12,0"
-                    Foreground="#FF0078D7"/>
+                <TextBlock Grid.Row="0"
+                           Text="{Binding DisplayName}"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis"/>
 
-                <!-- Device name and ID -->
-                <StackPanel Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="15" />
-                    <TextBlock Text="{Binding DeviceId}" FontSize="11" Opacity="0.6" />
-                </StackPanel>
-
-                <!-- Status badge -->
-                <Border Grid.Row="0" Grid.Column="2" Grid.RowSpan="2"
-                    Background="{Binding StatusColor}" Padding="8,4" CornerRadius="4"
-                    VerticalAlignment="Center" Margin="12,0,0,0">
-                    <TextBlock Text="{Binding StatusText}" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
-                </Border>
-
-                <!-- Capability badges row -->
-                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,4,0,0">
-                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasPing, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="Ping" FontSize="9" Foreground="White"/>
-                    </Border>
-                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="Battery" FontSize="9" Foreground="White"/>
-                    </Border>
-                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasFileTransfer, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="Files" FontSize="9" Foreground="White"/>
-                    </Border>
-                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasMpris, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="Media" FontSize="9" Foreground="White"/>
-                    </Border>
-                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasMousepad, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="Mouse" FontSize="9" Foreground="White"/>
-                    </Border>
-                </StackPanel>
+                <TextBlock Grid.Row="1"
+                           Text="{Binding Subtitle}"
+                           FontSize="12"
+                           Opacity="0.7"
+                           Margin="0,2,0,0"
+                           TextWrapping="Wrap"/>
             </Grid>
         </DataTemplate>
-
-        <DataTemplate x:Key="EmptyStateTemplate">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
-                <TextBlock Text="&#xE133;" FontFamily="Segoe UI Symbol" FontSize="72" Foreground="#FF0078D7" HorizontalAlignment="Center"/>
-                <TextBlock Text="No devices found" HorizontalAlignment="Center" Margin="0,16,0,8" FontSize="26" FontWeight="SemiBold" />
-                <TextBlock Text="Pull to refresh or tap + to add a device by IP" HorizontalAlignment="Center" TextWrapping="Wrap" Opacity="0.7" FontSize="15" />
-            </StackPanel>
-        </DataTemplate>
-
     </Page.Resources>
 
     <Grid>
@@ -81,54 +46,48 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="12,8">
-            <TextBlock Text="KDE Connect" VerticalAlignment="Center" FontSize="22" FontWeight="SemiBold" />
-            <TextBlock Text=":" VerticalAlignment="Center" Opacity="0.5" Margin="0,0,8,0" FontSize="22" FontWeight="SemiBold" />
-            <TextBlock x:Name="OwnDeviceName" Text="WP81" VerticalAlignment="Center" Opacity="0.7" FontSize="18" />
+        <StackPanel Grid.Row="0" Margin="12,10,12,0">
+            <TextBlock Text="KDE Connect" FontSize="26" FontWeight="SemiBold"/>
+            <TextBlock x:Name="OwnDeviceName" Text="starting" FontSize="12" Opacity="0.7"/>
         </StackPanel>
 
-        <!-- Device list -->
         <Grid Grid.Row="1">
             <ListView x:Name="DeviceListView"
-                ItemsSource="{Binding}"
-                ItemTemplate="{StaticResource DeviceItemTemplate}"
-                IsItemClickEnabled="False"
-                SelectionMode="None"
-                ShowsScrollingPlaceholders="False">
+                      ItemTemplate="{StaticResource DeviceItemTemplate}"
+                      SelectionMode="None"
+                      IsItemClickEnabled="False">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                         <Setter Property="Padding" Value="0"/>
-                        <Setter Property="Margin" Value="0"/>
                     </Style>
                 </ListView.ItemContainerStyle>
             </ListView>
 
-            <ContentControl x:Name="EmptyState" ContentTemplate="{StaticResource EmptyStateTemplate}" Visibility="Collapsed"/>
+            <StackPanel x:Name="EmptyState" VerticalAlignment="Center" Margin="24">
+                <TextBlock Text="No devices yet" FontSize="20" HorizontalAlignment="Center"/>
+                <TextBlock Text="Tap Refresh to announce this phone, or use Add by IP."
+                           FontSize="13" Opacity="0.7" TextWrapping="Wrap"
+                           TextAlignment="Center" Margin="0,8,0,0"/>
+            </StackPanel>
+
+            <ProgressRing x:Name="RefreshRing" Width="40" Height="40"
+                          VerticalAlignment="Top" HorizontalAlignment="Center"
+                          Margin="0,20,0,0" IsActive="False"/>
         </Grid>
 
-        <!-- Pull-to-refresh indicator -->
-        <ProgressRing x:Name="RefreshRing" Grid.Row="1" Width="40" Height="40" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,24,0,0" IsActive="False"/>
-
+        <Page.BottomAppBar>
+            <CommandBar ClosedDisplayMode="Minimal">
+                <CommandBar.PrimaryCommands>
+                    <AppBarButton x:Name="RefreshButton" Icon="Refresh" Label="Refresh" Click="OnRefreshClick"/>
+                    <AppBarButton x:Name="AddDeviceButton" Icon="Add" Label="Add by IP" Click="OnAddDeviceClick"/>
+                    <AppBarButton x:Name="SettingsButton" Icon="Setting" Label="Settings" Click="OnSettingsClick"/>
+                </CommandBar.PrimaryCommands>
+                <CommandBar.SecondaryCommands>
+                    <AppBarButton Icon="Help" Label="About" Click="OnAboutClick"/>
+                    <AppBarButton Icon="Document" Label="Diagnostics" Click="OnDiagnosticsClick"/>
+                </CommandBar.SecondaryCommands>
+            </CommandBar>
+        </Page.BottomAppBar>
     </Grid>
-
-    <!--
-      Property-element syntax: an attached property of the root Page must be a
-      direct child of <Page>, not of the content Grid, or the XAML compiler
-      reports "Unknown attachable member 'Page.BottomAppBar' on element 'Grid'".
-    -->
-    <Page.BottomAppBar>
-        <CommandBar ClosedDisplayMode="Minimal" Background="#1FFFFFFF">
-            <CommandBar.PrimaryCommands>
-                <AppBarButton x:Name="RefreshButton" Icon="Refresh" Label="Refresh" Click="OnRefreshClick"/>
-                <AppBarButton x:Name="AddDeviceButton" Icon="Add" Label="Add by IP" Click="OnAddDeviceClick"/>
-                <AppBarButton x:Name="SettingsButton" Icon="Setting" Label="Settings" Click="OnSettingsClick"/>
-            </CommandBar.PrimaryCommands>
-            <CommandBar.SecondaryCommands>
-                <AppBarButton Icon="Help" Label="About" Click="OnAboutClick"/>
-                <AppBarButton Icon="Document" Label="Diagnostics" Click="OnDiagnosticsClick"/>
-            </CommandBar.SecondaryCommands>
-        </CommandBar>
-    </Page.BottomAppBar>
 </Page>
