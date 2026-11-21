@@ -178,3 +178,21 @@ re-learned.
 
 Nothing here is inferred from documentation; the "present" list is what this
 build actually renders on a Nokia device.
+
+## L11 — The app must activate promptly or it is terminated silently
+
+- **Behaviour:** Windows Phone terminates an app that has not activated its UI
+  within a short deadline. The termination raises **no managed exception**, so
+  `Application.UnhandledException` never fires and `crash.log` stays empty. The
+  app simply disappears after the splash screen.
+- **How this client triggered it:** startup generated an RSA key pair *before*
+  showing any UI. On this hardware that takes seconds, which is long enough to
+  miss the deadline on a first run.
+- **Fix:** `OnLaunched` now installs a code-built "Starting..." screen and calls
+  `Window.Current.Activate()` **before** any identity work, then replaces the
+  content with the real page once services are ready. The starting screen has no
+  XAML resources and no bindings, so it cannot fail to parse.
+- **Diagnosis when it still vanishes:** `startup.log` in `LocalFolder` records one
+  line per startup step. The last line written names the step that was running.
+  It is shown in the app's Startup report dialog, which is why "no crash log"
+  is no longer the same thing as "no information".

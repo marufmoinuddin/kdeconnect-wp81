@@ -1,61 +1,46 @@
 ﻿using System;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
+using System.Threading.Tasks;
 using Windows.Storage;
 
 namespace KDEConnect.WP81.Services
 {
     /// <summary>
-    /// Last-resort crash record.
+    /// Field diagnostics.
     ///
-    /// A Windows Phone app that dies during startup takes its error message
-    /// with it: there is no console to read and the process is gone before a
-    /// dialog could be shown. Writing the exception to LocalFolder means the
-    /// next launch can display what killed the previous one, which is the only
-    /// practical way to diagnose a field crash without a debugger attached.
+    /// A Windows Phone app that dies during startup takes its error message with
+    /// it: no console, and the process is gone before a dialog could appear.
+    /// Two files in LocalFolder are the only durable evidence available:
     ///
-    /// Every method swallows its own failures: a logger that throws while
-    /// reporting a crash is worse than no logger.
+    ///   crash.log    exceptions that escaped
+    ///   startup.log  breadcrumbs, one line per startup step
+    ///
+    /// The breadcrumbs exist because "no crash log at all" is ambiguous: it can
+    /// mean a native failure, or a termination for taking too long, or a
+    /// deadlock inside this very writer. With breadcrumbs the last line names the
+    /// step that was running when the app died.
+    ///
+    /// Every method swallows its own failures, and every wait is bounded.
+    /// Blocking an unbounded <c>GetResult()</c> on the dispatcher thread can
+    /// deadlock, and a logger that hangs while reporting a crash is worse than
+    /// no logger at all.
     /// </summary>
     public static class CrashLog
     {
-        private const string FileName = "crash.log";
-        private const int MaxBytes = 16 * 1024;
+        private const string CrashFileName = "crash.log";
+        private const string StartupFileName = "startup.log";
+        private const int MaxChars = 16 * 1024;
+        private const int WaitMs = 2000;
+
+        // ---- crash records --------------------------------------------------
 
         public static void Record(string message)
         {
-            string line = DateTime.UtcNow.ToString("u") + "Z  " + (message ?? "(null)") + Environment.NewLine;
-
-            // Also visible in the Visual Studio Output window when debugging.
+            string line = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + "Z  " +
+                          (message ?? "(null)") + Environment.NewLine;
             System.Diagnostics.Debug.WriteLine("[KDEConnect] " + line.Trim());
-
-            try
-            {
-                StorageFolder folder = ApplicationData.Current.LocalFolder;
-                StorageFile file = folder.CreateFileAsync(
-                    FileName, CreationCollisionOption.OpenIfExists).AsTask().GetAwaiter().GetResult();
-
-                string existing = string.Empty;
-                try
-                {
-                    existing = FileIO.ReadTextAsync(file).AsTask().GetAwaiter().GetResult();
-                }
-                catch (Exception)
-                {
-                }
-
-                string combined = existing + line;
-                if (combined.Length > MaxBytes)
-                {
-                    // Keep the tail: the most recent crash is the interesting one.
-                    combined = combined.Substring(combined.Length - MaxBytes);
-                }
-
-                FileIO.WriteTextAsync(file, combined).AsTask().GetAwaiter().GetResult();
-            }
-            catch (Exception)
-            {
-            }
+            Append(CrashFileName, line);
         }
 
         public static void Record(string context, Exception ex)
@@ -81,18 +66,92 @@ namespace KDEConnect.WP81.Services
             Record(sb.ToString());
         }
 
-        /// <summary>Reads the log, or returns null when nothing was ever recorded.</summary>
+        // ---- startup breadcrumbs --------------------------------------------
+
+        /// <summary>
+        /// Records that a startup step was reached. Cheap, bounded, never throws.
+        /// The last breadcrumb written before a silent death is the answer to
+        /// "where did it die".
+        /// </summary>
+        public static void Trace(string step)
+        {
+            string line = DateTime.UtcNow.ToString("HH:mm:ss.fff") + "  " + (step ?? "?") +
+                          Environment.NewLine;
+            System.Diagnostics.Debug.WriteLine("[startup] " + line.Trim());
+            Append(StartupFileName, line);
+        }
+
+        public static string ReadStartupTrace()
+        {
+            return ReadAll(StartupFileName);
+        }
+
         public static string Read()
+        {
+            return ReadAll(CrashFileName);
+        }
+
+        // ---- storage --------------------------------------------------------
+
+        private static void Append(string fileName, string line)
         {
             try
             {
                 StorageFolder folder = ApplicationData.Current.LocalFolder;
-                StorageFile file = folder.GetFileAsync(FileName).AsTask().GetAwaiter().GetResult();
-                if (file == null)
+
+                Task<StorageFile> createTask = folder.CreateFileAsync(
+                    fileName, CreationCollisionOption.OpenIfExists).AsTask();
+                if (!createTask.Wait(WaitMs) || createTask.Result == null)
+                {
+                    return;
+                }
+                StorageFile file = createTask.Result;
+
+                string existing = string.Empty;
+                try
+                {
+                    Task<string> readTask = FileIO.ReadTextAsync(file).AsTask();
+                    if (readTask.Wait(WaitMs))
+                    {
+                        existing = readTask.Result ?? string.Empty;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+
+                string combined = existing + line;
+                if (combined.Length > MaxChars)
+                {
+                    combined = combined.Substring(combined.Length - MaxChars);
+                }
+
+                Task writeTask = FileIO.WriteTextAsync(file, combined).AsTask();
+                writeTask.Wait(WaitMs);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static string ReadAll(string fileName)
+        {
+            try
+            {
+                StorageFolder folder = ApplicationData.Current.LocalFolder;
+
+                Task<StorageFile> getTask = folder.GetFileAsync(fileName).AsTask();
+                if (!getTask.Wait(WaitMs) || getTask.Result == null)
                 {
                     return null;
                 }
-                string text = FileIO.ReadTextAsync(file).AsTask().GetAwaiter().GetResult();
+
+                Task<string> readTask = FileIO.ReadTextAsync(getTask.Result).AsTask();
+                if (!readTask.Wait(WaitMs))
+                {
+                    return null;
+                }
+                string text = readTask.Result;
                 return string.IsNullOrEmpty(text) ? null : text;
             }
             catch (Exception)
@@ -103,14 +162,21 @@ namespace KDEConnect.WP81.Services
 
         public static void Clear()
         {
+            DeleteFile(CrashFileName);
+            DeleteFile(StartupFileName);
+        }
+
+        private static void DeleteFile(string fileName)
+        {
             try
             {
                 StorageFolder folder = ApplicationData.Current.LocalFolder;
-                StorageFile file = folder.GetFileAsync(FileName).AsTask().GetAwaiter().GetResult();
-                if (file != null)
+                Task<StorageFile> getTask = folder.GetFileAsync(fileName).AsTask();
+                if (!getTask.Wait(WaitMs) || getTask.Result == null)
                 {
-                    file.DeleteAsync().AsTask().GetAwaiter().GetResult();
+                    return;
                 }
+                getTask.Result.DeleteAsync().AsTask().Wait(WaitMs);
             }
             catch (Exception)
             {

@@ -60,31 +60,46 @@ namespace KDEConnect.WP81
 
         protected override async void OnLaunched(LaunchActivatedEventArgs e)
         {
-            Frame rootFrame = null;
+            CrashLog.Trace("OnLaunched: entered");
+
+            // Put something on screen and ACTIVATE before any real work.
+            //
+            // Identity creation generates an RSA key pair, which on this
+            // hardware takes seconds. Windows terminates an app that has not
+            // activated its UI promptly, and that termination raises no managed
+            // exception - so it leaves no crash log and simply vanishes. This
+            // is the most likely cause of "it just crashes now".
             try
             {
-                LastCrash = CrashLog.Read();
+                Window.Current.Content = BuildStartingScreen();
+                Window.Current.Activate();
+                CrashLog.Trace("OnLaunched: starting screen activated");
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Record("starting screen", ex);
+            }
 
 #if DEBUG
-                if (System.Diagnostics.Debugger.IsAttached)
-                {
-                    this.DebugSettings.EnableFrameRateCounter = true;
-                }
+            if (System.Diagnostics.Debugger.IsAttached)
+            {
+                this.DebugSettings.EnableFrameRateCounter = true;
+            }
 #endif
-                rootFrame = Window.Current.Content as Frame;
-                if (rootFrame == null)
-                {
-                    rootFrame = new Frame();
-                    rootFrame.CacheSize = 1;
-                    Window.Current.Content = rootFrame;
-                }
 
-                // Services must exist before the first page is constructed: the
-                // device list page resolves DeviceManager in its constructor.
+            LastCrash = CrashLog.Read();
+
+            try
+            {
                 await InitializeServicesAsync();
+                CrashLog.Trace("OnLaunched: services ready");
+
+                Frame rootFrame = new Frame();
+                rootFrame.CacheSize = 1;
+                Window.Current.Content = rootFrame;
 
                 NavigateSafely(rootFrame, e.Arguments);
-                Window.Current.Activate();
+                CrashLog.Trace("OnLaunched: navigated, done");
             }
             catch (Exception ex)
             {
@@ -95,9 +110,27 @@ namespace KDEConnect.WP81
                 {
                     StartupError = ex.Message;
                 }
-                ShowFallbackPage(rootFrame);
-                Window.Current.Activate();
+                ShowFallbackPage(null);
             }
+        }
+
+        /// <summary>
+        /// Deliberately built in code: no XAML resources, no bindings, nothing
+        /// that can fail to parse. This screen exists to satisfy the activation
+        /// deadline, not to look good.
+        /// </summary>
+        private static UIElement BuildStartingScreen()
+        {
+            TextBlock text = new TextBlock();
+            text.Text = "KDE Connect" + Environment.NewLine + Environment.NewLine + "Starting...";
+            text.FontSize = 20;
+            text.Margin = new Thickness(24);
+            text.TextWrapping = TextWrapping.Wrap;
+
+            StackPanel panel = new StackPanel();
+            panel.VerticalAlignment = VerticalAlignment.Center;
+            panel.Children.Add(text);
+            return panel;
         }
 
         private void NavigateSafely(Frame rootFrame, object arguments)
@@ -215,11 +248,54 @@ namespace KDEConnect.WP81
                 sb.AppendLine("Previous run's crash log:");
                 sb.AppendLine(LastCrash);
             }
+
+            // Breadcrumbs from the previous launch: the last line names the step
+            // that was running when the app died, which is the only evidence
+            // available when the process vanished without an exception.
+            string trace = CrashLog.ReadStartupTrace();
+            if (!string.IsNullOrEmpty(trace))
+            {
+                sb.AppendLine();
+                sb.AppendLine("Startup trace (previous run, last lines):");
+                sb.AppendLine(TailLines(trace, 14));
+            }
+            return sb.ToString().Trim();
+        }
+
+        /// <summary>Last n non-empty lines of a log, for on-device display.</summary>
+        /// <remarks>
+        /// Splits on raw character codes rather than escape sequences: a literal
+        /// backslash-r inside a string is too easy to mangle in transit, and it
+        /// did once already.
+        /// </remarks>
+        private static string TailLines(string text, int count)
+        {
+            string[] raw = text.Split(new char[] { (char)13, (char)10 });
+            List<string> lines = new List<string>();
+            for (int i = 0; i < raw.Length; i++)
+            {
+                if (raw[i].Length > 0)
+                {
+                    lines.Add(raw[i]);
+                }
+            }
+
+            int start = lines.Count - count;
+            if (start < 0)
+            {
+                start = 0;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = start; i < lines.Count; i++)
+            {
+                sb.AppendLine(lines[i]);
+            }
             return sb.ToString().Trim();
         }
 
         /// <summary>
-        /// Builds the service graph in dependency order. The identity is the
+        /// Builds the service graph in dependency order.
         /// root: nothing can be advertised or connected without it, and the
         /// certificate generation is slow enough that it must not run on the
         /// dispatcher thread.
@@ -229,14 +305,18 @@ namespace KDEConnect.WP81
         /// </summary>
         private async Task InitializeServicesAsync()
         {
+            CrashLog.Trace("init: begin");
             DeviceStore.OwnIdentity own;
             try
             {
                 DeviceStore = new DeviceStore(new StorageBlobStore());
+                CrashLog.Trace("init: store ready");
 
                 own = DeviceStore.LoadIdentity();
+                CrashLog.Trace("init: identity " + (own == null ? "absent" : "loaded"));
                 if (own == null)
                 {
+                    CrashLog.Trace("init: generating certificate (slow)");
                     string newId = Sanitize.GenerateDeviceId();
                     TlsIdentity minted = await Task.Run(delegate
                     {
@@ -261,6 +341,8 @@ namespace KDEConnect.WP81
 
             try
             {
+                CrashLog.Trace("init: identity ready");
+
                 TlsIdentity identity = new TlsIdentity(
                     own.DeviceId, own.CertificateDer, own.PrivateKeyDer);
 
@@ -271,6 +353,7 @@ namespace KDEConnect.WP81
                     ProtocolConstants.ProtocolVersion);
 
                 LinkManager = new LinkManager(identity, localInfo);
+                CrashLog.Trace("init: link manager built");
                 PluginManager = new PluginManager(LinkManager);
 
                 // Only implemented plugins contribute capabilities, so a peer is
@@ -289,8 +372,10 @@ namespace KDEConnect.WP81
                 localInfo.IncomingCapabilities.AddRange(PluginManager.GetIncomingCapabilities());
                 localInfo.OutgoingCapabilities.AddRange(PluginManager.GetOutgoingCapabilities());
 
+                CrashLog.Trace("init: plugins registered");
                 DeviceManager = new DeviceManager(DeviceStore, LinkManager, PluginManager);
                 DeviceManager.SetOwnIdentity(own);
+                CrashLog.Trace("init: device manager ready");
             }
             catch (Exception ex)
             {
@@ -302,7 +387,9 @@ namespace KDEConnect.WP81
             // Non-fatal: TCP 1716 may be blocked by the platform.
             try
             {
+                CrashLog.Trace("init: binding tcp listener");
                 await LinkManager.StartAsync();
+                CrashLog.Trace("init: tcp listener bound");
             }
             catch (Exception ex)
             {
@@ -314,7 +401,9 @@ namespace KDEConnect.WP81
             // Non-fatal: UDP 1716 broadcast/bind may be blocked or unsupported.
             try
             {
+                CrashLog.Trace("init: binding udp discovery");
                 await DeviceManager.StartDiscoveryAsync();
+                CrashLog.Trace("init: udp discovery bound");
             }
             catch (Exception ex)
             {
