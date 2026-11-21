@@ -211,3 +211,19 @@ build actually renders on a Nokia device.
   socket, and each failure is written to `startup.log`. A launch that succeeds
   on the third attempt records `tcp: bound on attempt 3` rather than looking
   identical to a first-try success.
+
+## L13 - The SD card needs a declaration, not just an API
+
+- **Symptom:** `KnownFolders.RemovableDevices` throws `UnauthorizedAccessException`
+  and the card never appears, even though third-party file managers happily show
+  it. Their access is not evidence that this package has it.
+- **Cause:** the `removableStorage` capability was missing from
+  `Package.appxmanifest`. Every store app that browses the card declares it.
+- **Fix:** the capability is declared, and `Services/StorageBrowser.cs` probes
+  each source independently - app storage, removable devices, then the three
+  media libraries - so a library the app has no capability for is skipped with a
+  note instead of taking the page down.
+- **Still true:** a folder inside the card can itself be protected
+  (`WPSystem`, other apps' data). Those are reported per row as a problem rather
+  than ending the listing, because one unreadable folder must not look like an
+  empty card.

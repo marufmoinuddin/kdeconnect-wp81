@@ -303,6 +303,11 @@ namespace KDEConnect.WP81.Pages
             Frame.Navigate(typeof(SettingsPage));
         }
 
+        private void OnFilesClick(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(FilesPage));
+        }
+
         private void OnAboutClick(object sender, RoutedEventArgs e)
         {
             Frame.Navigate(typeof(AboutPage));

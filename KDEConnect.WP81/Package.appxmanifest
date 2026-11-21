@@ -34,5 +34,14 @@
     -->
     <Capability Name="internetClientServer" />
     <Capability Name="privateNetworkClientServer" />
+
+    <!--
+      removableStorage is what makes the SD card visible. Third-party file
+      managers on this platform all declare it; without it KnownFolders.
+      RemovableDevices throws UnauthorizedAccessException and the card simply
+      does not appear, which reads like a platform limitation when it is a
+      missing declaration.
+    -->
+    <Capability Name="removableStorage" />
   </Capabilities>
 </Package>

@@ -88,6 +88,7 @@
                     <AppBarButton x:Name="SettingsButton" Icon="Setting" Label="Settings" Click="OnSettingsClick"/>
                 </CommandBar.PrimaryCommands>
                 <CommandBar.SecondaryCommands>
+                    <AppBarButton Icon="OpenFile" Label="Files" Click="OnFilesClick"/>
                     <AppBarButton Icon="Help" Label="About" Click="OnAboutClick"/>
                     <AppBarButton Icon="Document" Label="Diagnostics" Click="OnDiagnosticsClick"/>
                 </CommandBar.SecondaryCommands>

@@ -52,6 +52,7 @@ namespace KdeConnect.HostTests
             HandshakeTests();
             SanitizeTests();
             AddressNormalisationTests();
+            StorageListingTests();
             CapabilityTests();
             RateLimitTests();
             RedactorTests();
@@ -1823,6 +1824,41 @@ namespace KdeConnect.HostTests
         // be dialled back produces the worst kind of bug - discovery works, the
         // device appears in the list, and every connection attempt fails.
         // ------------------------------------------------------------------
+        private static void StorageListingTests()
+        {
+            Section("storage listing");
+
+            System.Collections.Generic.List<StorageEntry> input =
+                new System.Collections.Generic.List<StorageEntry>();
+            input.Add(new StorageEntry { Name = "b.txt", IsFolder = false, SizeBytes = 2048 });
+            input.Add(new StorageEntry { Name = "Zebra", IsFolder = true });
+            input.Add(new StorageEntry { Name = "a.txt", IsFolder = false, SizeBytes = 10 });
+            input.Add(new StorageEntry { Name = "apple", IsFolder = true });
+            input.Add(null);
+
+            System.Collections.Generic.List<StorageEntry> ordered = StorageListing.Order(input);
+            CheckEqual("nulls dropped from the listing", 4L, ordered.Count);
+            CheckEqual("folders sort before files, case-insensitively", "apple", ordered[0].Name);
+            CheckEqual("second folder", "Zebra", ordered[1].Name);
+            CheckEqual("first file", "a.txt", ordered[2].Name);
+            CheckEqual("last file", "b.txt", ordered[3].Name);
+
+            CheckEqual("bytes", "512 B", StorageListing.FormatSize(512));
+            CheckEqual("exactly one kilobyte", "1.0 KB", StorageListing.FormatSize(1024));
+            CheckTrue("megabytes are labelled", StorageListing.FormatSize(5 * 1024 * 1024).EndsWith(" MB"));
+            CheckTrue("gigabytes are labelled",
+                StorageListing.FormatSize(3L * 1024L * 1024L * 1024L).EndsWith(" GB"));
+            CheckEqual("negative size is unknown", "?", StorageListing.FormatSize(-1));
+
+            CheckEqual("folder subtitle", "folder",
+                StorageListing.Subtitle(new StorageEntry { IsFolder = true }));
+            CheckEqual("problem outranks other detail", "denied",
+                StorageListing.Subtitle(new StorageEntry { Problem = "denied" }));
+            CheckEqual("file subtitle is just its size when undated", "1.0 KB",
+                StorageListing.Subtitle(new StorageEntry { SizeBytes = 1024 }));
+
+        }
+
         private static void AddressNormalisationTests()
         {
             Section("address normalisation");

@@ -109,8 +109,10 @@
     <Compile Include="Core\ProtocolConstants.cs" />
     <Compile Include="Core\RateLimitGuard.cs" />
     <Compile Include="Core\Redactor.cs" />
+    <Compile Include="Core\StorageListing.cs" />
     <Compile Include="Services\StorageBlobStore.cs" />
     <Compile Include="Services\CrashLog.cs" />
+    <Compile Include="Services\StorageBrowser.cs" />
     <Compile Include="Services\WinRtBatterySource.cs" />
     <Compile Include="Services\DeviceManager.cs" />
     <Compile Include="Services\LinkManager.cs" />
@@ -140,6 +142,9 @@
     </Compile>
     <Compile Include="Pages\DiagnosticsPage.xaml.cs">
       <DependentUpon>DiagnosticsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\FilesPage.xaml.cs">
+      <DependentUpon>FilesPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\MousepadPage.xaml.cs">
       <DependentUpon>MousepadPage.xaml</DependentUpon>
@@ -221,6 +226,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\DiagnosticsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\FilesPage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
