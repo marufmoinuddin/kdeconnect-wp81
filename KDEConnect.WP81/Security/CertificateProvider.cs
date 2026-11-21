@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
@@ -77,8 +78,8 @@ namespace KDEConnect.WP81.Security
         /// </summary>
         public static X509Name BuildDistinguishedName(string deviceId)
         {
-            ArrayList oids = new ArrayList();
-            ArrayList values = new ArrayList();
+            IList oids = new List<object>();
+            IList values = new List<object>();
 
             oids.Add(X509Name.CN);
             values.Add(deviceId);

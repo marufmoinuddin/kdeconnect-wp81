@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Org.BouncyCastle.Crypto.Digests;
 
 namespace KDEConnect.WP81.Core
 {
@@ -117,21 +118,21 @@ namespace KDEConnect.WP81.Core
             {
                 return string.Empty;
             }
-            using (System.Security.Cryptography.SHA256 sha = System.Security.Cryptography.SHA256.Create())
+            Sha256Digest digest = new Sha256Digest();
+            digest.BlockUpdate(der, 0, der.Length);
+            byte[] hash = new byte[digest.GetDigestSize()];
+            digest.DoFinal(hash, 0);
+            StringBuilder sb = new StringBuilder();
+            int limit = Math.Min(groups, hash.Length);
+            for (int i = 0; i < limit; i++)
             {
-                byte[] hash = sha.ComputeHash(der);
-                StringBuilder sb = new StringBuilder();
-                int limit = Math.Min(groups, hash.Length);
-                for (int i = 0; i < limit; i++)
+                if (i > 0)
                 {
-                    if (i > 0)
-                    {
-                        sb.Append(':');
-                    }
-                    sb.Append(hash[i].ToString("X2"));
+                    sb.Append(':');
                 }
-                return sb.ToString();
+                sb.Append(hash[i].ToString("X2"));
             }
+            return sb.ToString();
         }
     }
 }

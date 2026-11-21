@@ -92,6 +92,14 @@ Org.BouncyCastle.Asn1.X509.{X509Name, SubjectPublicKeyInfo, AlgorithmIdentifier,
                             TbsCertificateStructure, X509CertificateStructure, X509Extensions}
 ```
 
+Hashes (`System.Security.Cryptography` is not in the wpa81 API surface, so the
+pairing verification code and certificate fingerprint use the portable build
+instead):
+
+```
+Org.BouncyCastle.Crypto.Digests.Sha256Digest
+```
+
 `Org.BouncyCastle.Cert.X509v3CertificateBuilder` and
 `Org.BouncyCastle.Operator.*` are **absent** from the portable build — use
 `X509V3CertificateGenerator` instead (it is present).

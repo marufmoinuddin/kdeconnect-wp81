@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -403,7 +404,7 @@ namespace KDEConnect.WP81.Security
 
         private static IList SignatureAlgorithms()
         {
-            ArrayList list = new ArrayList();
+            List<SignatureAndHashAlgorithm> list = new List<SignatureAndHashAlgorithm>();
             list.Add(new SignatureAndHashAlgorithm(HashAlgorithm.sha512, SignatureAlgorithm.rsa));
             list.Add(new SignatureAndHashAlgorithm(HashAlgorithm.sha384, SignatureAlgorithm.rsa));
             list.Add(new SignatureAndHashAlgorithm(HashAlgorithm.sha256, SignatureAlgorithm.rsa));

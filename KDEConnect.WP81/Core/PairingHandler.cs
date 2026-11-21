@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
+using Org.BouncyCastle.Crypto.Digests;
 
 namespace KDEConnect.WP81.Core
 {
@@ -288,11 +288,10 @@ namespace KDEConnect.WP81.Core
             Buffer.BlockCopy(b, 0, buffer, a.Length, b.Length);
             Buffer.BlockCopy(timestampBytes, 0, buffer, a.Length + b.Length, timestampBytes.Length);
 
-            byte[] hash;
-            using (SHA256 sha = SHA256.Create())
-            {
-                hash = sha.ComputeHash(buffer);
-            }
+            Sha256Digest digest = new Sha256Digest();
+            digest.BlockUpdate(buffer, 0, buffer.Length);
+            byte[] hash = new byte[digest.GetDigestSize()];
+            digest.DoFinal(hash, 0);
 
             StringBuilder sb = new StringBuilder(8);
             for (int i = 0; i < 4; i++)
