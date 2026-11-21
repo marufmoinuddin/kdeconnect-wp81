@@ -77,6 +77,25 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Remote control -->
+                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock Text="Remote control" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+
+                        <Button Content="Touchpad and keyboard" Click="OnTouchpadClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
+                        <Button Content="Media player" Click="OnMediaClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
+                        <Button Content="Desktop volume" Click="OnVolumeClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
+
+                        <TextBlock Text="Peer battery" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,16,0,0" Opacity="0.7"/>
+                        <TextBlock x:Name="BatteryText" Text="unknown" Style="{ThemeResource BodyTextBlockStyle}"/>
+
+                        <TextBlock Text="Send text to the desktop clipboard" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,16,0,0" Opacity="0.7"/>
+                        <TextBox x:Name="ClipboardBox" PlaceholderText="Text for the desktop clipboard" AcceptsReturn="True" Height="72" TextWrapping="Wrap"/>
+                        <Button Content="Send to clipboard" Click="OnSendClipboardClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
+                        <TextBlock x:Name="ClipboardStatus" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Test actions -->
                 <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>

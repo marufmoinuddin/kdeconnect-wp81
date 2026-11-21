@@ -135,6 +135,15 @@
     <Compile Include="Pages\DiagnosticsPage.xaml.cs">
       <DependentUpon>DiagnosticsPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Pages\MousepadPage.xaml.cs">
+      <DependentUpon>MousepadPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\MediaPage.xaml.cs">
+      <DependentUpon>MediaPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\VolumePage.xaml.cs">
+      <DependentUpon>VolumePage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Core\Sanitize.cs" />
     <Compile Include="Core\DeviceStore.cs" />
     <Compile Include="Core\MprisState.cs" />
@@ -206,6 +215,18 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\DiagnosticsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\MousepadPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\MediaPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\VolumePage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

@@ -18,6 +18,10 @@ namespace KDEConnect.WP81.Pages
         private string _deviceId;
         private DeviceRecord _record;
 
+        private BatteryPlugin _batteryPlugin;
+        private ClipboardPlugin _clipboardPlugin;
+        private FindMyPhonePlugin _findMyPhonePlugin;
+
         public DeviceDetailPage()
         {
             this.InitializeComponent();
@@ -37,7 +41,92 @@ namespace KDEConnect.WP81.Pages
                 return;
             }
 
+            _batteryPlugin = _pluginManager.GetPlugin("battery") as BatteryPlugin;
+            if (_batteryPlugin != null)
+            {
+                _batteryPlugin.BatteryChanged += OnBatteryChanged;
+                _batteryPlugin.RequestPeerBattery(_deviceId);
+            }
+
+            _clipboardPlugin = _pluginManager.GetPlugin("clipboard") as ClipboardPlugin;
+
+            _findMyPhonePlugin = _pluginManager.GetPlugin("findmyphone") as FindMyPhonePlugin;
+            if (_findMyPhonePlugin != null)
+            {
+                _findMyPhonePlugin.RingRequested += OnRingRequested;
+            }
+
             await RefreshAsync();
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            if (_batteryPlugin != null)
+            {
+                _batteryPlugin.BatteryChanged -= OnBatteryChanged;
+            }
+            if (_findMyPhonePlugin != null)
+            {
+                _findMyPhonePlugin.RingRequested -= OnRingRequested;
+            }
+            base.OnNavigatedFrom(e);
+        }
+
+        private void OnBatteryChanged(string deviceId, BatteryState state)
+        {
+            if (!string.Equals(deviceId, _deviceId, StringComparison.Ordinal) || state == null)
+            {
+                return;
+            }
+            Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, delegate
+            {
+                BatteryText.Text = state.DisplayText;
+            }).AsTask().ConfigureAwait(false);
+        }
+
+        private void OnRingRequested(string deviceId)
+        {
+            // The phone has no background audio, so "find my phone" surfaces as
+            // a full-screen alert rather than a ringtone.
+            Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, delegate
+            {
+                MessageDialog dialog = new MessageDialog(
+                    "The desktop asked this phone to make itself known.",
+                    "Find my phone");
+                dialog.ShowAsync();
+            }).AsTask().ConfigureAwait(false);
+        }
+
+        private void OnTouchpadClick(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(MousepadPage), _deviceId);
+        }
+
+        private void OnMediaClick(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(MediaPage), _deviceId);
+        }
+
+        private void OnVolumeClick(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(VolumePage), _deviceId);
+        }
+
+        private void OnSendClipboardClick(object sender, RoutedEventArgs e)
+        {
+            if (_clipboardPlugin == null)
+            {
+                ClipboardStatus.Text = "Clipboard plugin not available.";
+                return;
+            }
+            string text = ClipboardBox.Text;
+            if (string.IsNullOrEmpty(text))
+            {
+                ClipboardStatus.Text = "Nothing to send.";
+                return;
+            }
+            bool sent = _clipboardPlugin.SendText(_deviceId, text);
+            ClipboardStatus.Text = sent ? "Sent to the desktop clipboard." : "Not connected.";
         }
 
         private async Task RefreshAsync()
