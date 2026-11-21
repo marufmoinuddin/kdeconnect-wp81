@@ -27,6 +27,13 @@ namespace KdeConnect.HostTests
 
         public static int Main(string[] args)
         {
+            // Interop mode: stand up the phone's TLS server role for a real
+            // client to connect to, then exit without running the suite.
+            if (ListenMode.TryRun(args))
+            {
+                return 0;
+            }
+
             RunAll();
 
             Console.WriteLine();
@@ -53,6 +60,7 @@ namespace KdeConnect.HostTests
             SanitizeTests();
             AddressNormalisationTests();
             StorageListingTests();
+            RecordingStreamTests();
             CapabilityTests();
             RateLimitTests();
             RedactorTests();
@@ -1824,6 +1832,38 @@ namespace KdeConnect.HostTests
         // be dialled back produces the worst kind of bug - discovery works, the
         // device appears in the list, and every connection attempt fails.
         // ------------------------------------------------------------------
+        private static void RecordingStreamTests()
+        {
+            Section("handshake recording");
+
+            byte[] payload = new byte[100];
+            for (int i = 0; i < payload.Length; i++)
+            {
+                payload[i] = (byte)i;
+            }
+
+            System.IO.MemoryStream inner = new System.IO.MemoryStream(payload);
+            RecordingReadStream recorder = new RecordingReadStream(inner, 32);
+
+            byte[] buffer = new byte[64];
+            int first = recorder.Read(buffer, 0, 64);
+            CheckEqual("reads through to the inner stream", 64L, first);
+            CheckEqual("total bytes counted", 64L, recorder.TotalBytesRead);
+            CheckTrue("capture stops at the limit", recorder.Captured.Length <= 32);
+            CheckEqual("capture keeps the first byte", 0L, recorder.Captured[0]);
+            CheckEqual("capture keeps the second byte", 1L, recorder.Captured[1]);
+
+            string described = recorder.Describe();
+            CheckTrue("description reports the byte count", described.Contains("64 byte"));
+            CheckTrue("description shows hex", described.Contains("00 01 02"));
+
+            System.IO.MemoryStream empty = new System.IO.MemoryStream(new byte[0]);
+            RecordingReadStream silent = new RecordingReadStream(empty, 32);
+            CheckEqual("empty stream reads zero", 0L, silent.Read(buffer, 0, 64));
+            CheckTrue("zero bytes is called out as no ClientHello",
+                silent.Describe().Contains("0 bytes"));
+        }
+
         private static void StorageListingTests()
         {
             Section("storage listing");

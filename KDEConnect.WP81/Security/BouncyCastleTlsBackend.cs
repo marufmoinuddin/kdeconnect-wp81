@@ -58,14 +58,21 @@ namespace KDEConnect.WP81.Security
             return RunAsync(channel, timeout, cancellationToken, delegate
             {
                 ServerHandler handler = new ServerHandler(local, peer);
-                TlsServerProtocol protocol = new TlsServerProtocol(channel.Stream, new SecureRandom());
+                // Record what the peer actually sent. Bouncy Castle collapses
+                // "peer closed the socket", "not a TLS record" and "we rejected
+                // the ClientHello" into internal_error(80), so the byte count is
+                // the only thing that separates them after the fact.
+                RecordingReadStream recorder = new RecordingReadStream(channel.Stream, 512);
+                TlsServerProtocol protocol = new TlsServerProtocol(recorder, new SecureRandom());
                 try
                 {
                     protocol.Accept(handler);
                 }
                 catch (Exception ex)
                 {
-                    throw new IOException("TLS server handshake failed at stage '" + handler.Stage + "': " + ex.Message, ex);
+                    throw new IOException(
+                        "TLS server handshake failed at stage '" + handler.Stage + "': " +
+                        ex.Message + " [" + recorder.Describe() + "]", ex);
                 }
                 return new Session(protocol, handler.Collect(), channel);
             });
@@ -81,14 +88,17 @@ namespace KDEConnect.WP81.Security
             return RunAsync(channel, timeout, cancellationToken, delegate
             {
                 ClientHandler handler = new ClientHandler(local, peer);
-                TlsClientProtocol protocol = new TlsClientProtocol(channel.Stream, new SecureRandom());
+                RecordingReadStream recorder = new RecordingReadStream(channel.Stream, 512);
+                TlsClientProtocol protocol = new TlsClientProtocol(recorder, new SecureRandom());
                 try
                 {
                     protocol.Connect(handler);
                 }
                 catch (Exception ex)
                 {
-                    throw new IOException("TLS client handshake failed at stage '" + handler.Stage + "': " + ex.Message, ex);
+                    throw new IOException(
+                        "TLS client handshake failed at stage '" + handler.Stage + "': " +
+                        ex.Message + " [" + recorder.Describe() + "]", ex);
                 }
                 return new Session(protocol, handler.Collect(), channel);
             });

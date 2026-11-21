@@ -29,6 +29,7 @@
     <Compile Include="..\KDEConnect.WP81\Transport\LinkEstablisher.cs" />
     <Compile Include="..\KDEConnect.WP81\Security\**\*.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="ListenMode.cs" />
   </ItemGroup>
 
   <ItemGroup>
