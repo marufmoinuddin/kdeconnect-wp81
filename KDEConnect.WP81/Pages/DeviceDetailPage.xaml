@@ -21,17 +21,17 @@
 
         <!-- Header with device name -->
         <StackPanel Grid.Row="0" Margin="12,8">
-            <TextBlock x:Name="DeviceNameText" Style="{ThemeResource HeaderTextBlockStyle}"/>
-            <TextBlock x:Name="DeviceIdText" Style="{ThemeResource SubheaderTextBlockStyle}" Opacity="0.6" Margin="0,4,0,0"/>
-            <TextBlock x:Name="StatusText" Style="{ThemeResource BodyTextBlockStyle}" Margin="0,8,0,0"/>
+            <TextBlock x:Name="DeviceNameText" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock x:Name="DeviceIdText" Opacity="0.6" Margin="0,4,0,0" FontSize="18" />
+            <TextBlock x:Name="StatusText" Margin="0,8,0,0" FontSize="15" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" Margin="12,0,12,12">
             <StackPanel>
                 <!-- Connection section -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Connection" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Connection" FontSize="18" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="Address:" Width="100" VerticalAlignment="Center"/>
                             <TextBlock x:Name="AddressText" VerticalAlignment="Center"/>
@@ -48,9 +48,9 @@
                 </Border>
 
                 <!-- Pairing section -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Pairing" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Pairing" FontSize="18" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="Paired:" Width="100" VerticalAlignment="Center"/>
                             <TextBlock x:Name="PairedText" VerticalAlignment="Center"/>
@@ -65,43 +65,43 @@
                 </Border>
 
                 <!-- Capabilities section -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Capabilities" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Capabilities" FontSize="18" />
                         <StackPanel x:Name="IncomingCapsPanel" Margin="0,8,0,0">
-                            <TextBlock Text="Receives (Incoming):" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                            <TextBlock Text="Receives (Incoming):" Opacity="0.7" FontSize="12" />
                         </StackPanel>
                         <StackPanel x:Name="OutgoingCapsPanel" Margin="0,8,0,0">
-                            <TextBlock Text="Sends (Outgoing):" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                            <TextBlock Text="Sends (Outgoing):" Opacity="0.7" FontSize="12" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <!-- Remote control -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Remote control" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Remote control" FontSize="18" />
 
                         <Button Content="Touchpad and keyboard" Click="OnTouchpadClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
                         <Button Content="Media player" Click="OnMediaClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
                         <Button Content="Desktop volume" Click="OnVolumeClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
 
-                        <TextBlock Text="Peer battery" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,16,0,0" Opacity="0.7"/>
-                        <TextBlock x:Name="BatteryText" Text="unknown" Style="{ThemeResource BodyTextBlockStyle}"/>
+                        <TextBlock Text="Peer battery" Margin="0,16,0,0" Opacity="0.7" FontSize="12" />
+                        <TextBlock x:Name="BatteryText" Text="unknown" FontSize="15" />
 
-                        <TextBlock Text="Send text to the desktop clipboard" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,16,0,0" Opacity="0.7"/>
+                        <TextBlock Text="Send text to the desktop clipboard" Margin="0,16,0,0" Opacity="0.7" FontSize="12" />
                         <TextBox x:Name="ClipboardBox" PlaceholderText="Text for the desktop clipboard" AcceptsReturn="True" Height="72" TextWrapping="Wrap"/>
                         <Button Content="Send to clipboard" Click="OnSendClipboardClick" Margin="0,8,0,0" HorizontalAlignment="Stretch"/>
-                        <TextBlock x:Name="ClipboardStatus" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                        <TextBlock x:Name="ClipboardStatus" Opacity="0.7" FontSize="12" />
                     </StackPanel>
                 </Border>
 
                 <!-- Test actions -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Test Actions" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Test Actions" FontSize="18" />
                         <Button x:Name="PingButton" Content="Send Ping" Click="OnPingClick" Margin="0,8,0,0" IsEnabled="False"/>
-                        <TextBlock x:Name="PingResultText" Margin="0,8,0,0" Style="{ThemeResource BodyTextBlockStyle}"/>
+                        <TextBlock x:Name="PingResultText" Margin="0,8,0,0" FontSize="15" />
                     </StackPanel>
                 </Border>
             </StackPanel>

@@ -26,12 +26,12 @@
                 <TextBlock Grid.Row="0" Grid.Column="0" Grid.RowSpan="2"
                     Text="&#xE133;" FontFamily="Segoe UI Symbol" FontSize="32"
                     VerticalAlignment="Center" Margin="0,0,12,0"
-                    Foreground="{ThemeResource PhoneAccentBrush}"/>
+                    Foreground="#FF0078D7"/>
 
                 <!-- Device name and ID -->
                 <StackPanel Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding DisplayName}" Style="{ThemeResource BodyTextBlockStyle}" FontWeight="SemiBold"/>
-                    <TextBlock Text="{Binding DeviceId}" Style="{ThemeResource CaptionTextBlockStyle}" FontSize="11" Opacity="0.6"/>
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="15" />
+                    <TextBlock Text="{Binding DeviceId}" FontSize="11" Opacity="0.6" />
                 </StackPanel>
 
                 <!-- Status badge -->
@@ -43,19 +43,19 @@
 
                 <!-- Capability badges row -->
                 <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,4,0,0">
-                    <Border Background="{ThemeResource PhoneAccentBrush}" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasPing, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasPing, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="Ping" FontSize="9" Foreground="White"/>
                     </Border>
-                    <Border Background="{ThemeResource PhoneAccentBrush}" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="Battery" FontSize="9" Foreground="White"/>
                     </Border>
-                    <Border Background="{ThemeResource PhoneAccentBrush}" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasFileTransfer, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasFileTransfer, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="Files" FontSize="9" Foreground="White"/>
                     </Border>
-                    <Border Background="{ThemeResource PhoneAccentBrush}" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasMpris, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasMpris, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="Media" FontSize="9" Foreground="White"/>
                     </Border>
-                    <Border Background="{ThemeResource PhoneAccentBrush}" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasMousepad, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Background="#FF0078D7" Padding="4,1" CornerRadius="2" Margin="0,0,4,0" Visibility="{Binding HasMousepad, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="Mouse" FontSize="9" Foreground="White"/>
                     </Border>
                 </StackPanel>
@@ -64,9 +64,9 @@
 
         <DataTemplate x:Key="EmptyStateTemplate">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
-                <TextBlock Text="&#xE133;" FontFamily="Segoe UI Symbol" FontSize="72" Foreground="{ThemeResource PhoneAccentBrush}" HorizontalAlignment="Center"/>
-                <TextBlock Text="No devices found" Style="{ThemeResource TitleTextBlockStyle}" HorizontalAlignment="Center" Margin="0,16,0,8"/>
-                <TextBlock Text="Pull to refresh or tap + to add a device by IP" Style="{ThemeResource BodyTextBlockStyle}" HorizontalAlignment="Center" TextWrapping="Wrap" Opacity="0.7"/>
+                <TextBlock Text="&#xE133;" FontFamily="Segoe UI Symbol" FontSize="72" Foreground="#FF0078D7" HorizontalAlignment="Center"/>
+                <TextBlock Text="No devices found" HorizontalAlignment="Center" Margin="0,16,0,8" FontSize="26" FontWeight="SemiBold" />
+                <TextBlock Text="Pull to refresh or tap + to add a device by IP" HorizontalAlignment="Center" TextWrapping="Wrap" Opacity="0.7" FontSize="15" />
             </StackPanel>
         </DataTemplate>
 
@@ -81,9 +81,9 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="12,8">
-            <TextBlock Text="KDE Connect" Style="{ThemeResource HeaderTextBlockStyle}" VerticalAlignment="Center"/>
-            <TextBlock Text=":" Style="{ThemeResource HeaderTextBlockStyle}" VerticalAlignment="Center" Opacity="0.5" Margin="0,0,8,0"/>
-            <TextBlock x:Name="OwnDeviceName" Text="WP81" Style="{ThemeResource SubheaderTextBlockStyle}" VerticalAlignment="Center" Opacity="0.7"/>
+            <TextBlock Text="KDE Connect" VerticalAlignment="Center" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock Text=":" VerticalAlignment="Center" Opacity="0.5" Margin="0,0,8,0" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock x:Name="OwnDeviceName" Text="WP81" VerticalAlignment="Center" Opacity="0.7" FontSize="18" />
         </StackPanel>
 
         <!-- Device list -->
@@ -117,7 +117,7 @@
       reports "Unknown attachable member 'Page.BottomAppBar' on element 'Grid'".
     -->
     <Page.BottomAppBar>
-        <CommandBar ClosedDisplayMode="Minimal" Background="{ThemeResource AppBarBackgroundThemeBrush}">
+        <CommandBar ClosedDisplayMode="Minimal" Background="#1FFFFFFF">
             <CommandBar.PrimaryCommands>
                 <AppBarButton x:Name="RefreshButton" Icon="Refresh" Label="Refresh" Click="OnRefreshClick"/>
                 <AppBarButton x:Name="AddDeviceButton" Icon="Add" Label="Add by IP" Click="OnAddDeviceClick"/>

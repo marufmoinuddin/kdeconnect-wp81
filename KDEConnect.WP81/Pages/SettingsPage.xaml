@@ -15,15 +15,15 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="12,8">
-            <TextBlock Text="Settings" Style="{ThemeResource HeaderTextBlockStyle}"/>
+            <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" Margin="12,0,12,12">
             <StackPanel>
                 <!-- Device Identity -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Device Identity" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Device Identity" FontSize="18" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="Device ID:" Width="120" VerticalAlignment="Center"/>
                             <TextBlock x:Name="DeviceIdText" VerticalAlignment="Center" FontFamily="Consolas" FontSize="13"/>
@@ -37,9 +37,9 @@
                 </Border>
 
                 <!-- Network -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Network" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Network" FontSize="18" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="Discovery Port:" Width="140" VerticalAlignment="Center"/>
                             <TextBlock Text="1716 (UDP)" VerticalAlignment="Center" Opacity="0.7"/>
@@ -52,21 +52,21 @@
                 </Border>
 
                 <!-- Security -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Security" Style="{ThemeResource SubheaderTextBlockStyle}"/>
-                        <TextBlock Text="KDE Connect uses mutual TLS with certificate pinning." Style="{ThemeResource BodyTextBlockStyle}" Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.8"/>
-                        <TextBlock Text="Paired devices' certificates are stored locally and verified on every connection." Style="{ThemeResource BodyTextBlockStyle}" Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.8"/>
+                        <TextBlock Text="Security" FontSize="18" />
+                        <TextBlock Text="KDE Connect uses mutual TLS with certificate pinning." Margin="0,8,0,0" TextWrapping="Wrap" Opacity="0.8" FontSize="15" />
+                        <TextBlock Text="Paired devices' certificates are stored locally and verified on every connection." Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.8" FontSize="15" />
                         <Button x:Name="ClearAllPairingsButton" Content="Clear All Pairings" Click="OnClearAllPairingsClick" Margin="0,12,0,0" Background="Red"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Debug -->
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Debug" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Debug" FontSize="18" />
                         <Button x:Name="ExportDiagnosticsButton" Content="Export Diagnostics" Click="OnExportDiagnosticsClick" Margin="0,8,0,0"/>
-                        <TextBlock x:Name="DiagnosticsResultText" Margin="0,8,0,0" Style="{ThemeResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="DiagnosticsResultText" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="15" />
                     </StackPanel>
                 </Border>
             </StackPanel>

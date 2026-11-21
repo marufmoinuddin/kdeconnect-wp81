@@ -115,7 +115,7 @@ namespace KDEConnect.WP81.Pages
             string sinkName = sink.Name;
 
             Border card = new Border();
-            card.Background = (Windows.UI.Xaml.Media.Brush)Application.Current.Resources["AppBarBackgroundThemeBrush"];
+            card.Background = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
             card.CornerRadius = new CornerRadius(4);
             card.Padding = new Thickness(12);
             card.Margin = new Thickness(0, 0, 0, 8);
@@ -125,7 +125,7 @@ namespace KDEConnect.WP81.Pages
             TextBlock label = new TextBlock();
             label.Text = sink.DisplayName;
             label.TextWrapping = TextWrapping.Wrap;
-            label.Style = (Style)Application.Current.Resources["BodyTextBlockStyle"];
+            label.FontSize = 15;
             panel.Children.Add(label);
 
             Slider slider = new Slider();

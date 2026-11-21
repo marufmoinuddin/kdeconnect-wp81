@@ -15,20 +15,19 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="12,8,12,0">
-            <TextBlock x:Name="HeaderText" Text="Touchpad" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+            <TextBlock x:Name="HeaderText" Text="Touchpad" FontSize="18" />
         </StackPanel>
 
         <!-- Drag anywhere here to move the pointer. -->
-        <Border Grid.Row="1" Margin="12" Background="{ThemeResource AppBarBackgroundThemeBrush}"
+        <Border Grid.Row="1" Margin="12" Background="#1FFFFFFF"
                 CornerRadius="8" ManipulationMode="All"
                 ManipulationDelta="OnPadManipulationDelta"
                 DoubleTapped="OnPadDoubleTapped"
                 Tapped="OnPadTapped">
             <TextBlock Text="drag to move the pointer"
-                       Style="{ThemeResource BodyTextBlockStyle}"
                        Opacity="0.5" HorizontalAlignment="Center"
                        VerticalAlignment="Center" TextWrapping="Wrap"
-                       TextAlignment="Center" Margin="16"/>
+                       TextAlignment="Center" Margin="16" FontSize="15" />
         </Border>
 
         <StackPanel Grid.Row="2" Margin="12,0,12,12">
@@ -62,7 +61,7 @@
                 <Button Content="Tab" Click="OnTabKey"/>
             </StackPanel>
 
-            <TextBlock x:Name="StatusText" Margin="0,8,0,0" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+            <TextBlock x:Name="StatusText" Margin="0,8,0,0" Opacity="0.7" FontSize="12" />
         </StackPanel>
     </Grid>
 </Page>

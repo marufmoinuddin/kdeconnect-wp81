@@ -13,13 +13,13 @@
     SecondaryButtonClick="ContentDialog_SecondaryButtonClick">
 
     <StackPanel Margin="12,0">
-        <TextBlock x:Name="DeviceNameText" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap"/>
-        <TextBlock x:Name="DeviceIdText" Style="{ThemeResource SubheaderTextBlockStyle}" Opacity="0.6" Margin="0,4,0,0"/>
+        <TextBlock x:Name="DeviceNameText" TextWrapping="Wrap" FontSize="26" FontWeight="SemiBold" />
+        <TextBlock x:Name="DeviceIdText" Opacity="0.6" Margin="0,4,0,0" FontSize="18" />
 
-        <TextBlock Text="Verification Code:" Style="{ThemeResource SubheaderTextBlockStyle}" Margin="0,24,0,8"/>
-        <TextBlock x:Name="VerificationCodeText" Style="{ThemeResource HeaderTextBlockStyle}" FontFamily="Consolas" FontSize="36" CharacterSpacing="200" HorizontalAlignment="Center"/>
+        <TextBlock Text="Verification Code:" Margin="0,24,0,8" FontSize="18" />
+        <TextBlock x:Name="VerificationCodeText" FontFamily="Consolas" FontSize="36" CharacterSpacing="200" HorizontalAlignment="Center" FontWeight="SemiBold" />
 
-        <TextBlock Text="Compare this code with the one shown on the other device." Style="{ThemeResource BodyTextBlockStyle}" Margin="0,16,0,0" TextWrapping="Wrap" Opacity="0.8"/>
-        <TextBlock Text="If the codes match, tap Accept. Otherwise, tap Reject." Style="{ThemeResource BodyTextBlockStyle}" Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.8"/>
+        <TextBlock Text="Compare this code with the one shown on the other device." Margin="0,16,0,0" TextWrapping="Wrap" Opacity="0.8" FontSize="15" />
+        <TextBlock Text="If the codes match, tap Accept. Otherwise, tap Reject." Margin="0,4,0,0" TextWrapping="Wrap" Opacity="0.8" FontSize="15" />
     </StackPanel>
 </ContentDialog>

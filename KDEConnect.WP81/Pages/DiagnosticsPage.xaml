@@ -15,31 +15,31 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="12,8">
-            <TextBlock Text="Diagnostics" Style="{ThemeResource HeaderTextBlockStyle}"/>
+            <TextBlock Text="Diagnostics" FontSize="22" FontWeight="SemiBold" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" Margin="12,0,12,12">
             <StackPanel>
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Live Diagnostics" Style="{ThemeResource SubheaderTextBlockStyle}"/>
-                        <TextBlock x:Name="LiveText" Style="{ThemeResource BodyTextBlockStyle}" FontFamily="Consolas" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Live Diagnostics" FontSize="18" />
+                        <TextBlock x:Name="LiveText" FontFamily="Consolas" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" />
                         <Button x:Name="RefreshLiveButton" Content="Refresh" Click="OnRefreshLiveClick" Margin="0,12,0,0"/>
                     </StackPanel>
                 </Border>
 
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Export Full Diagnostics" Style="{ThemeResource SubheaderTextBlockStyle}"/>
+                        <TextBlock Text="Export Full Diagnostics" FontSize="18" />
                         <Button x:Name="ExportButton" Content="Export to Documents" Click="OnExportClick" Margin="0,8,0,0"/>
-                        <TextBlock x:Name="ExportResultText" Margin="0,8,0,0" Style="{ThemeResource BodyTextBlockStyle}" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="ExportResultText" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="15" />
                     </StackPanel>
                 </Border>
 
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" Margin="0,0,0,12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" Margin="0,0,0,12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock Text="Recent Log (last 100 entries)" Style="{ThemeResource SubheaderTextBlockStyle}"/>
-                        <TextBlock x:Name="LogText" Style="{ThemeResource BodyTextBlockStyle}" FontFamily="Consolas" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Recent Log (last 100 entries)" FontSize="18" />
+                        <TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
             </StackPanel>

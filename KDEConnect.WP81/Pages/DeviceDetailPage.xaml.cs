@@ -160,31 +160,31 @@ namespace KDEConnect.WP81.Pages
             PingButton.IsEnabled = isConnected;
 
             IncomingCapsPanel.Children.Clear();
-            IncomingCapsPanel.Children.Add(new TextBlock { Text = "Receives (Incoming):", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], Opacity = 0.7 });
+            IncomingCapsPanel.Children.Add(new TextBlock { Text = "Receives (Incoming):", FontSize = 12, Opacity = 0.7 });
             if (_record.IncomingCapabilities != null && _record.IncomingCapabilities.Count > 0)
             {
                 foreach (var cap in _record.IncomingCapabilities.OrderBy(c => c))
                 {
-                    IncomingCapsPanel.Children.Add(new TextBlock { Text = "  • " + cap, Style = (Style)Application.Current.Resources["BodyTextBlockStyle"], Margin = new Thickness(12, 2, 0, 2) });
+                    IncomingCapsPanel.Children.Add(new TextBlock { Text = "  • " + cap, FontSize = 15, Margin = new Thickness(12, 2, 0, 2) });
                 }
             }
             else
             {
-                IncomingCapsPanel.Children.Add(new TextBlock { Text = "  (none)", Style = (Style)Application.Current.Resources["BodyTextBlockStyle"], Opacity = 0.5, Margin = new Thickness(12, 2, 0, 2) });
+                IncomingCapsPanel.Children.Add(new TextBlock { Text = "  (none)", FontSize = 15, Opacity = 0.5, Margin = new Thickness(12, 2, 0, 2) });
             }
 
             OutgoingCapsPanel.Children.Clear();
-            OutgoingCapsPanel.Children.Add(new TextBlock { Text = "Sends (Outgoing):", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], Opacity = 0.7 });
+            OutgoingCapsPanel.Children.Add(new TextBlock { Text = "Sends (Outgoing):", FontSize = 12, Opacity = 0.7 });
             if (_record.OutgoingCapabilities != null && _record.OutgoingCapabilities.Count > 0)
             {
                 foreach (var cap in _record.OutgoingCapabilities.OrderBy(c => c))
                 {
-                    OutgoingCapsPanel.Children.Add(new TextBlock { Text = "  • " + cap, Style = (Style)Application.Current.Resources["BodyTextBlockStyle"], Margin = new Thickness(12, 2, 0, 2) });
+                    OutgoingCapsPanel.Children.Add(new TextBlock { Text = "  • " + cap, FontSize = 15, Margin = new Thickness(12, 2, 0, 2) });
                 }
             }
             else
             {
-                OutgoingCapsPanel.Children.Add(new TextBlock { Text = "  (none)", Style = (Style)Application.Current.Resources["BodyTextBlockStyle"], Opacity = 0.5, Margin = new Thickness(12, 2, 0, 2) });
+                OutgoingCapsPanel.Children.Add(new TextBlock { Text = "  (none)", FontSize = 15, Opacity = 0.5, Margin = new Thickness(12, 2, 0, 2) });
             }
         }
 

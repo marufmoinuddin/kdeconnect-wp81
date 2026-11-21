@@ -1,4 +1,4 @@
-# Known limitations — KDEConnect.WP81
+﻿# Known limitations — KDEConnect.WP81
 
 Every entry states the OS restriction, whether it is model-specific (WinRT vs
 Silverlight), whether a partial alternative exists, and whether it is permanent.
@@ -123,3 +123,27 @@ Generated: 2026-11-20. Companion: `docs/compatibility-matrix.md`.
   (`docs/tls-backend.md` §5) if NuGet restore fails.
 - **Status:** **BLOCKED** until the Windows build gate and the real-peer
   handshake gate pass. Not to be described as working.
+
+## L9 — Several theme *styles* that exist on Windows 8.1 are absent on Phone 8.1
+
+- **Restriction:** the phone's resource dictionary is not the desktop's.
+  `{ThemeResource CaptionTextBlockStyle}` parses on Windows and **throws at
+  runtime on the phone**: `XamlParseException: Cannot find a Resource with the
+  Name/Key CaptionTextBlockStyle`. Because it throws while the page is being
+  built, the whole page fails to load - the app shows the splash and then
+  either dies or lands on the fallback screen.
+- **Evidence:** observed on a Nokia device against this build
+  (`UnhandledException -> XamlParseException ... CaptionTextBlockStyle
+  [Line: 34 Position: 58]`, caught by the crash log this project writes to
+  `LocalFolder\crash.log`).
+- **What this client does instead:** no XAML in this repository uses a
+  `*TextBlockStyle` or `AppBarBackgroundThemeBrush` key any more. Sizes and
+  weights are set as literal `FontSize`/`FontWeight`, card backgrounds are a
+  literal colour, and code-behind never reaches into
+  `Application.Current.Resources[...]`. The single remaining theme key is
+  `ApplicationPageBackgroundThemeBrush`, which is proven to resolve on device.
+- **Model-specific:** yes (phone). Believed absent from the Phone 8.1 theme
+  dictionary; the desktop dictionary does not tell you this.
+- **Partial alternative:** reintroduce individual keys only after confirming
+  them on the device; a missing key is a runtime crash, not a build error, so
+  it cannot be caught by the compiler.

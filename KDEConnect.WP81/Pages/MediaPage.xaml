@@ -14,17 +14,17 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="12,8">
-            <TextBlock Text="Media" Style="{ThemeResource SubheaderTextBlockStyle}"/>
-            <TextBlock x:Name="PlayerText" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+            <TextBlock Text="Media" FontSize="18" />
+            <TextBlock x:Name="PlayerText" Opacity="0.7" FontSize="12" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" Margin="12,0,12,12">
             <StackPanel>
-                <Border Background="{ThemeResource AppBarBackgroundThemeBrush}" Padding="12" CornerRadius="4">
+                <Border Background="#1FFFFFFF" Padding="12" CornerRadius="4">
                     <StackPanel>
-                        <TextBlock x:Name="TitleText" Text="(no media)" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="ArtistText" Style="{ThemeResource BodyTextBlockStyle}" Opacity="0.8" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                        <TextBlock x:Name="PositionText" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.6" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="TitleText" Text="(no media)" TextWrapping="Wrap" FontSize="26" FontWeight="SemiBold" />
+                        <TextBlock x:Name="ArtistText" Opacity="0.8" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="15" />
+                        <TextBlock x:Name="PositionText" Opacity="0.6" Margin="0,8,0,0" FontSize="12" />
                     </StackPanel>
                 </Border>
 
@@ -34,13 +34,13 @@
                     <Button Content="&#xE101;" FontFamily="Segoe UI Symbol" FontSize="24" Width="72" Click="OnNext"/>
                 </StackPanel>
 
-                <TextBlock Text="Player volume" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,20,0,4" Opacity="0.7"/>
+                <TextBlock Text="Player volume" Margin="0,20,0,4" Opacity="0.7" FontSize="12" />
                 <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" StepFrequency="1"
                         ValueChanged="OnVolumeChanged"/>
-                <TextBlock x:Name="VolumeText" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                <TextBlock x:Name="VolumeText" Opacity="0.7" FontSize="12" />
 
                 <Button Content="Refresh" Click="OnRefresh" Margin="0,16,0,0"/>
-                <TextBlock x:Name="StatusText" Margin="0,8,0,0" Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7" TextWrapping="Wrap"/>
+                <TextBlock x:Name="StatusText" Margin="0,8,0,0" Opacity="0.7" TextWrapping="Wrap" FontSize="12" />
             </StackPanel>
         </ScrollViewer>
     </Grid>
