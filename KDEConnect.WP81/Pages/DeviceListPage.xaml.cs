@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Data;
+using Windows.UI.Popups;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using KDEConnect.WP81.Core;
@@ -108,6 +109,27 @@ namespace KDEConnect.WP81.Pages
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
+            try
+            {
+                App app = (App)App.Current;
+                string diag = app.GetDiagnosticsSummary();
+                if (!string.IsNullOrEmpty(diag))
+                {
+                    // Startup problems must be visible, not silent. This is how
+                    // a bind failure or a page-load error reaches the operator.
+                    MessageDialog dialog = new MessageDialog(diag, "Startup report");
+                    await dialog.ShowAsync();
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            if (_deviceManager == null)
+            {
+                return;
+            }
+
             await RefreshDeviceListAsync();
             UpdateOwnIdentityDisplay();
         }

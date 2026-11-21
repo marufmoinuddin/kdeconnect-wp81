@@ -104,6 +104,7 @@
     <Compile Include="Core\RateLimitGuard.cs" />
     <Compile Include="Core\Redactor.cs" />
     <Compile Include="Services\StorageBlobStore.cs" />
+    <Compile Include="Services\CrashLog.cs" />
     <Compile Include="Services\DeviceManager.cs" />
     <Compile Include="Services\LinkManager.cs" />
     <Compile Include="Services\PluginManager.cs" />
