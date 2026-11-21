@@ -207,7 +207,8 @@ namespace KDEConnect.WP81.Pages
                     }
                     await new MessageDialog(
                         "Could not start pairing." + Environment.NewLine +
-                        Environment.NewLine + reason).ShowAsync();
+                        Environment.NewLine + reason + Environment.NewLine +
+                        Environment.NewLine + "build " + KDEConnect.WP81.Core.BuildStamp.Value).ShowAsync();
                 }
             }
             finally

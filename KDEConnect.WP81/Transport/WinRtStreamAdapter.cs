@@ -20,6 +20,7 @@ namespace KDEConnect.WP81.Transport
         private readonly IInputStream _input;
         private readonly IOutputStream _output;
         private readonly bool _ownsStreams;
+        private DataWriter _writer;
         private bool _closed;
 
         public WinRtStreamAdapter(IInputStream input, IOutputStream output, bool ownsStreams)
@@ -78,7 +79,10 @@ namespace KDEConnect.WP81.Transport
                 return;
             }
             cancellationToken.ThrowIfCancellationRequested();
-            await _output.FlushAsync().AsTask(cancellationToken);
+            if (_writer != null)
+            {
+                await _writer.FlushAsync().AsTask(cancellationToken);
+            }
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -142,23 +146,29 @@ namespace KDEConnect.WP81.Transport
             // Copy the requested window into the buffer we hand to WinRT.
             byte[] window = new byte[count];
             System.Buffer.BlockCopy(buffer, offset, window, 0, count);
-            IBuffer toWrite = window.AsBuffer();
 
             cancellationToken.ThrowIfCancellationRequested();
-            uint written = await _output.WriteAsync(toWrite).AsTask(cancellationToken);
+
+            // DataWriter + StoreAsync is the documented way to send on a WinRT
+            // socket, and StoreAsync is the operation that actually pushes bytes
+            // to the transport. Writing straight to IOutputStream and relying on
+            // FlushAsync is what lost the connection's first packet.
+            if (_writer == null)
+            {
+                _writer = new DataWriter(_output);
+            }
+            _writer.WriteBytes(window);
+            uint stored = await _writer.StoreAsync().AsTask(cancellationToken);
 
             // A short write would silently truncate a TLS record, so treat it as
             // a failure rather than letting the handshake proceed on bad data.
-            if (written != (uint)count)
+            if (stored != (uint)count)
             {
-                throw new IOException("short write: " + written.ToString() +
+                throw new IOException("short write: " + stored.ToString() +
                                       " of " + count.ToString() + " bytes");
             }
 
-            // Flush as part of every write. The protocol is handshake-heavy and
-            // small, so the batching this gives up is worth nothing next to the
-            // cost of losing the first packet on the connection.
-            await _output.FlushAsync().AsTask(cancellationToken);
+            await _writer.FlushAsync().AsTask(cancellationToken);
         }
 
         public override long Seek(long offset, SeekOrigin origin)
@@ -176,6 +186,31 @@ namespace KDEConnect.WP81.Transport
             if (!_closed)
             {
                 _closed = true;
+
+                // Flush whatever the writer still holds before releasing it.
+                try
+                {
+                    if (_writer != null)
+                    {
+                        _writer.FlushAsync().AsTask().GetAwaiter().GetResult();
+                    }
+                }
+                catch (Exception)
+                {
+                }
+                try
+                {
+                    if (_writer != null)
+                    {
+                        _writer.DetachStream();
+                        _writer.Dispose();
+                        _writer = null;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+
                 if (_ownsStreams)
                 {
                     try

@@ -79,11 +79,15 @@ namespace KDEConnect.WP81.Transport
                 return LinkEstablishResult.Failed("no expected device id for the outbound connection");
             }
 
+            int identityBytes = 0;
             try
             {
                 NetworkPacket connection = localInfo.ToConnectionPacket(
                     policy.ExpectedDeviceId, ProtocolConstants.ProtocolVersion);
-                await WriteAsync(channel.Stream, connection.Serialize(), cancellationToken)
+                byte[] payload = connection.Serialize();
+                identityBytes = payload.Length;
+
+                await WriteAsync(channel.Stream, payload, cancellationToken)
                     .ConfigureAwait(false);
 
                 ITlsSession session = await backend.HandshakeAsServerAsync(
@@ -98,7 +102,11 @@ namespace KDEConnect.WP81.Transport
             }
             catch (Exception ex)
             {
-                return LinkEstablishResult.Failed("outbound link failed: " + ex.Message);
+                // Stating the write separately matters: "0 bytes received" alone
+                // cannot tell a lost write from a peer that refused to answer.
+                return LinkEstablishResult.Failed(
+                    "outbound link failed (identity " + identityBytes.ToString() +
+                    " bytes written to the socket): " + ex.Message);
             }
         }
 

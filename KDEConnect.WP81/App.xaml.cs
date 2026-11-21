@@ -335,6 +335,7 @@ namespace KDEConnect.WP81
         private async Task InitializeServicesAsync()
         {
             CrashLog.Trace("init: begin");
+            CrashLog.Trace("build: " + BuildStamp.Value);
             DeviceStore.OwnIdentity own;
             try
             {

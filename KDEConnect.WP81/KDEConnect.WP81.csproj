@@ -110,6 +110,7 @@
     <Compile Include="Core\RateLimitGuard.cs" />
     <Compile Include="Core\Redactor.cs" />
     <Compile Include="Core\StorageListing.cs" />
+    <Compile Include="Core\BuildStamp.cs" />
     <Compile Include="Services\StorageBlobStore.cs" />
     <Compile Include="Services\CrashLog.cs" />
     <Compile Include="Services\StorageBrowser.cs" />

@@ -84,6 +84,7 @@ namespace KDEConnect.WP81.Pages
                 sb.AppendLine(trace);
             }
 
+            sb.Insert(0, "Build: " + BuildStamp.Value + Environment.NewLine + Environment.NewLine);
             LiveText.Text = sb.ToString();
         }
 
