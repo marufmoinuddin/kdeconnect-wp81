@@ -200,8 +200,14 @@ namespace KDEConnect.WP81.Pages
                 }
                 else
                 {
+                    string reason = _deviceManager.GetLastError(_deviceId);
+                    if (string.IsNullOrEmpty(reason))
+                    {
+                        reason = "The device did not accept a connection.";
+                    }
                     await new MessageDialog(
-                        "Could not start pairing. Ensure the device is reachable on the network.").ShowAsync();
+                        "Could not start pairing." + Environment.NewLine +
+                        Environment.NewLine + reason).ShowAsync();
                 }
             }
             finally

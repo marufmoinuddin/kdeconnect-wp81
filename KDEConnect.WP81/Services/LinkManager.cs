@@ -123,6 +123,13 @@ namespace KDEConnect.WP81.Services
         }
 
         /// <summary>Starts (or restarts) the inbound listener. Idempotent.</summary>
+        /// <remarks>
+        /// Binding 1716 fails with EADDRINUSE for a second or two after the
+        /// previous instance exits, because the old process has not finished
+        /// releasing the socket. That is not a permanent condition, so retry
+        /// with a short backoff: a slow success is better than telling the
+        /// operator inbound connections are broken.
+        /// </remarks>
         public async Task StartAsync()
         {
             CancellationTokenSource cts;
@@ -136,25 +143,62 @@ namespace KDEConnect.WP81.Services
                 _cts = cts;
             }
 
-            WinRtTcpListener listener =
-                new WinRtTcpListener(ProtocolConstants.MinTcpPort, OnInboundConnection);
-            try
+            int[] delaysMs = new int[] { 0, 250, 500, 1000, 2000 };
+            Exception last = null;
+
+            for (int attempt = 0; attempt < delaysMs.Length; attempt++)
             {
-                await listener.StartAsync(cts.Token);
-            }
-            catch (Exception)
-            {
-                cts.Dispose();
+                if (delaysMs[attempt] > 0)
+                {
+                    await Task.Delay(delaysMs[attempt]);
+                }
+                if (cts.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                WinRtTcpListener listener =
+                    new WinRtTcpListener(ProtocolConstants.MinTcpPort, OnInboundConnection);
+                try
+                {
+                    await listener.StartAsync(cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    last = ex;
+                    try
+                    {
+                        listener.Dispose();
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    CrashLog.Trace("tcp: bind attempt " + (attempt + 1) +
+                                   " failed: " + ex.Message);
+                    continue;
+                }
+
                 lock (_gate)
                 {
-                    _cts = null;
+                    _listener = listener;
                 }
-                throw;
+                if (attempt > 0)
+                {
+                    CrashLog.Trace("tcp: bound on attempt " + (attempt + 1));
+                }
+                return;
             }
 
             lock (_gate)
             {
-                _listener = listener;
+                _cts = null;
+            }
+            cts.Dispose();
+
+            if (last != null)
+            {
+                throw new InvalidOperationException(
+                    "TCP listener on " + ProtocolConstants.MinTcpPort + " failed", last);
             }
         }
 

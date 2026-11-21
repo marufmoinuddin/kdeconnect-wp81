@@ -89,6 +89,56 @@ namespace KDEConnect.WP81.Core
             return true;
         }
 
+        /// <summary>
+        /// Turns the address a datagram arrived from into something that can be
+        /// dialled back.
+        /// </summary>
+        /// <remarks>
+        /// WinRT reports the remote address of a dual-mode socket in whatever
+        /// form the stack chose. On this platform that is frequently
+        /// IPv4-mapped IPv6 ("::ffff:192.168.0.5"), which a plain TCP connect
+        /// will not resolve even though the peer is perfectly reachable on
+        /// 192.168.0.5. Discovery would then succeed and every dial would fail,
+        /// which is exactly the kind of split-brain this project keeps paying
+        /// for: the device is listed, and pairing insists it is unreachable.
+        /// </remarks>
+        public static string NormalizeHostAddress(string address)
+        {
+            if (string.IsNullOrEmpty(address))
+            {
+                return string.Empty;
+            }
+
+            string value = address.Trim();
+
+            // "[fe80::1]" style brackets are not part of the address.
+            if (value.Length > 2 && value[0] == '[' && value[value.Length - 1] == ']')
+            {
+                value = value.Substring(1, value.Length - 2);
+            }
+
+            // IPv4-mapped IPv6 -> plain IPv4.
+            const string mappedPrefix = "::ffff:";
+            if (value.Length > mappedPrefix.Length &&
+                value.StartsWith(mappedPrefix, StringComparison.OrdinalIgnoreCase) &&
+                value.IndexOf('.') > 0)
+            {
+                value = value.Substring(mappedPrefix.Length);
+            }
+
+            return value;
+        }
+
+        /// <summary>True when the address is IPv6 rather than dotted-quad IPv4.</summary>
+        public static bool IsIPv6(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return false;
+            }
+            return value.IndexOf(':') >= 0 && !IsIPv4(value);
+        }
+
         /// <summary>True when the value is a syntactically valid device id.</summary>
         public static bool IsValidDeviceId(string value)
         {

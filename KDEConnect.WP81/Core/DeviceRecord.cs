@@ -50,6 +50,13 @@ namespace KDEConnect.WP81.Core
         /// <summary>Optional operator note shown in the UI.</summary>
         public string Note { get; set; }
 
+        /// <summary>
+        /// Why the last connection or pairing attempt failed, for display.
+        /// Transient: deliberately not written to storage, because a stale
+        /// reason from the previous session would be worse than none.
+        /// </summary>
+        public string LastError { get; set; }
+
         public bool Supports(string packetType)
         {
             if (packetType == null)

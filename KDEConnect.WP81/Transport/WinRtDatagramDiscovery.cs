@@ -32,6 +32,29 @@ namespace KDEConnect.WP81.Transport
         private DatagramSocket _receiver;
         private bool _disposed;
 
+        /// <summary>
+        /// Optional diagnostics sink. Transport stays free of any dependency on
+        /// the app's logging: it is also compiled by the host test project,
+        /// where Services does not exist.
+        /// </summary>
+        public Action<string> Trace { get; set; }
+
+        private void TraceLine(string message)
+        {
+            Action<string> sink = Trace;
+            if (sink == null)
+            {
+                return;
+            }
+            try
+            {
+                sink(message);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         /// <summary>json = raw datagram text, senderAddress = remote IP.</summary>
         public WinRtDatagramDiscovery(Action<string, string> onDatagram)
         {
@@ -60,28 +83,62 @@ namespace KDEConnect.WP81.Transport
                 return;
             }
 
-            DatagramSocket socket = new DatagramSocket();
-            socket.MessageReceived += OnMessageReceived;
+            // A previous instance may still hold UDP 1716 for a moment. WinRT
+            // reports that as 0x8000000E "a method was called at an unexpected
+            // time" rather than EADDRINUSE, which reads like a programming error
+            // and is not one. Retry with a fresh socket before giving up.
+            int[] delaysMs = new int[] { 0, 300, 700, 1500, 2500 };
+            Exception last = null;
 
-            try
+            for (int attempt = 0; attempt < delaysMs.Length; attempt++)
             {
-                await socket.BindServiceNameAsync(
-                    DiscoveryPort.ToString(CultureInfo.InvariantCulture)).AsTask(cancellationToken);
-            }
-            catch (Exception)
-            {
-                socket.MessageReceived -= OnMessageReceived;
+                if (delaysMs[attempt] > 0)
+                {
+                    await Task.Delay(delaysMs[attempt]);
+                }
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                DatagramSocket socket = new DatagramSocket();
+                socket.MessageReceived += OnMessageReceived;
+
                 try
                 {
-                    socket.Dispose();
+                    await socket.BindServiceNameAsync(
+                        DiscoveryPort.ToString(CultureInfo.InvariantCulture))
+                        .AsTask(cancellationToken);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    last = ex;
+                    socket.MessageReceived -= OnMessageReceived;
+                    try
+                    {
+                        socket.Dispose();
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    TraceLine("udp: bind attempt " + (attempt + 1) +
+                              " failed: " + ex.Message);
+                    continue;
                 }
-                throw;
+
+                _receiver = socket;
+                if (attempt > 0)
+                {
+                    TraceLine("udp: bound on attempt " + (attempt + 1));
+                }
+                return;
             }
 
-            _receiver = socket;
+            if (last != null)
+            {
+                throw new InvalidOperationException(
+                    "UDP discovery on " + DiscoveryPort + " failed", last);
+            }
         }
 
         /// <summary>

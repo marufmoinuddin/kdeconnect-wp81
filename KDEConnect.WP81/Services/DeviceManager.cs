@@ -61,6 +61,7 @@ namespace KDEConnect.WP81.Services
             _linkManager = linkManager;
             _pluginManager = pluginManager;
             _discovery = new WinRtDatagramDiscovery(OnDiscoveryDatagram);
+            _discovery.Trace = CrashLog.Trace;
 
             _linkManager.LinkEstablished += OnLinkEstablished;
             _linkManager.LinkFailed += OnLinkFailed;
@@ -404,7 +405,7 @@ namespace KDEConnect.WP81.Services
                     record.DeviceName = info.Name;
                     record.DeviceType = DeviceInfo.KindToString(info.Kind);
                     record.ProtocolVersion = info.ProtocolVersion;
-                    record.LastAddress = fromAddress;
+                    record.LastAddress = Sanitize.NormalizeHostAddress(fromAddress);
                     record.LastTcpPort = tcpPort;
                     record.LastSeenUnixSeconds = NowUnixSeconds();
                 }
@@ -419,7 +420,7 @@ namespace KDEConnect.WP81.Services
                 // (those carrying tcpPort) are answered.
                 if (np.Has("tcpPort"))
                 {
-                    ReplyUnicast(fromAddress);
+                    ReplyUnicast(Sanitize.NormalizeHostAddress(fromAddress));
                 }
             }
             catch (Exception)
@@ -500,9 +501,89 @@ namespace KDEConnect.WP81.Services
             DeviceRecord record = GetDevice(deviceId);
             if (record == null || string.IsNullOrEmpty(record.LastAddress))
             {
+                SetLastError(deviceId,
+                    "No network address is known for this device yet. " +
+                    "Discovery has not reported one - try Refresh, or use Add by IP.");
                 return false;
             }
-            return await ConnectAsync(deviceId, record.LastAddress, record.LastTcpPort);
+
+            string address = record.LastAddress;
+            int port = record.LastTcpPort;
+
+            bool connected = await ConnectAsync(deviceId, address, port);
+            if (connected)
+            {
+                return true;
+            }
+
+            // A peer that restarts can come back on the default port even though
+            // it last advertised something else. One retry is cheap next to
+            // telling the operator the device is unreachable.
+            if (port != ProtocolConstants.MinTcpPort)
+            {
+                connected = await ConnectAsync(deviceId, address, ProtocolConstants.MinTcpPort);
+                if (connected)
+                {
+                    return true;
+                }
+            }
+
+            DeviceRecord current = GetDevice(deviceId);
+            if (current != null && string.IsNullOrEmpty(current.LastError))
+            {
+                SetLastError(deviceId,
+                    "Could not reach " + address + ":" + port.ToString() +
+                    ". The peer may be asleep, or a firewall may be blocking TCP " +
+                    ProtocolConstants.MinTcpPort + ".");
+            }
+            return false;
+        }
+
+        /// <summary>Records why the last attempt failed, and logs it once.</summary>
+        private void SetLastError(string deviceId, string message)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                return;
+            }
+            DeviceRecord record = GetDevice(deviceId);
+            if (record != null)
+            {
+                record.LastError = message;
+            }
+        }
+
+        /// <summary>The last failure for a device, or null.</summary>
+        public string GetLastError(string deviceId)
+        {
+            DeviceRecord record = GetDevice(deviceId);
+            return record == null ? null : record.LastError;
+        }
+
+        /// <summary>
+        /// One readable line for an exception. WinRT wraps socket errors, and the
+        /// outer message ("an error occurred") is useless on its own.
+        /// </summary>
+        public static string DescribeError(Exception ex)
+        {
+            if (ex == null)
+            {
+                return "unknown error";
+            }
+            string text = ex.Message;
+            Exception inner = ex.InnerException;
+            int guard = 0;
+            while (inner != null && guard < 4)
+            {
+                if (!string.IsNullOrEmpty(inner.Message) &&
+                    text.IndexOf(inner.Message, StringComparison.Ordinal) < 0)
+                {
+                    text = text + " (" + inner.Message + ")";
+                }
+                inner = inner.InnerException;
+                guard++;
+            }
+            return text;
         }
 
         /// <summary>Connects to an explicit address (manual-IP fallback).</summary>
@@ -524,8 +605,12 @@ namespace KDEConnect.WP81.Services
                 await _linkManager.ConnectAsync(deviceId, address, port);
                 return _linkManager.IsConnected(deviceId);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                string reason = DescribeError(ex);
+                SetLastError(deviceId, "Could not connect to " + address + ":" +
+                    port.ToString() + " - " + reason);
+                CrashLog.Trace("connect: " + deviceId + " failed: " + reason);
                 return false;
             }
             finally

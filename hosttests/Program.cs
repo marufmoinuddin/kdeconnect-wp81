@@ -51,6 +51,7 @@ namespace KdeConnect.HostTests
             VerificationCodeTests();
             HandshakeTests();
             SanitizeTests();
+            AddressNormalisationTests();
             CapabilityTests();
             RateLimitTests();
             RedactorTests();
@@ -1814,6 +1815,42 @@ namespace KdeConnect.HostTests
             Check("rejects hostname", !Sanitize.IsIPv4("g14.local"), "accepted");
             Check("rejects empty octet", !Sanitize.IsIPv4("192.168..1"), "accepted");
             Check("rejects untrimmed input", !Sanitize.IsIPv4(" 192.168.1.1 "), "accepted spaces");
+        }
+
+        // ------------------------------------------------------------------
+        // Address normalisation: WinRT reports a dual-mode socket's remote
+        // address in whatever form the stack chose, and an address that cannot
+        // be dialled back produces the worst kind of bug - discovery works, the
+        // device appears in the list, and every connection attempt fails.
+        // ------------------------------------------------------------------
+        private static void AddressNormalisationTests()
+        {
+            Section("address normalisation");
+
+            CheckEqual("ipv4-mapped becomes ipv4",
+                "192.168.0.5", Sanitize.NormalizeHostAddress("::ffff:192.168.0.5"));
+            CheckEqual("uppercase mapped prefix still unwrapped",
+                "10.1.2.3", Sanitize.NormalizeHostAddress("::FFFF:10.1.2.3"));
+            CheckEqual("brackets stripped",
+                "10.0.0.2", Sanitize.NormalizeHostAddress("[::ffff:10.0.0.2]"));
+            CheckEqual("plain ipv4 untouched",
+                "192.168.1.42", Sanitize.NormalizeHostAddress("192.168.1.42"));
+            CheckEqual("surrounding spaces trimmed",
+                "192.168.1.9", Sanitize.NormalizeHostAddress("  192.168.1.9 "));
+            CheckEqual("link-local with zone kept",
+                "fe80::1%3", Sanitize.NormalizeHostAddress("fe80::1%3"));
+            CheckEqual("empty stays empty",
+                "", Sanitize.NormalizeHostAddress(""));
+            CheckEqual("null becomes empty",
+                "", Sanitize.NormalizeHostAddress(null));
+
+            Check("ipv4 is not ipv6", !Sanitize.IsIPv6("192.168.0.5"), "reported as ipv6");
+            Check("link-local is ipv6", Sanitize.IsIPv6("fe80::1"), "not reported as ipv6");
+            Check("mapped is still ipv6 before normalisation",
+                Sanitize.IsIPv6("::ffff:192.168.0.5"), "mapped not detected");
+            Check("normalised mapped is not ipv6",
+                !Sanitize.IsIPv6(Sanitize.NormalizeHostAddress("::ffff:192.168.0.5")),
+                "unwrapped address still looks ipv6");
         }
 
     }

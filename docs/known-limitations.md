@@ -196,3 +196,18 @@ build actually renders on a Nokia device.
   line per startup step. The last line written names the step that was running.
   It is shown in the app's Startup report dialog, which is why "no crash log"
   is no longer the same thing as "no information".
+
+## L12 - Sockets outlive the process for a moment, so a fast relaunch loses the ports
+
+- **Symptom:** the second launch reports
+  `TCP listener on 1716 failed (Only one usage of each socket address ...)`
+  and `UDP discovery on 1716 failed (A method was called at an unexpected time,
+  0x8000000E)`. Discovery and inbound links then do not work for that run.
+- **Cause:** the previous instance has not finished releasing its sockets.
+  WinRT reports the UDP case as `0x8000000E` rather than `EADDRINUSE`, which
+  reads like a coding error and is not one.
+- **Fix:** both binds retry on a short backoff (0 / 250 / 500 / 1000 / 2000 ms
+  for TCP, 0 / 300 / 700 / 1500 / 2500 ms for UDP), each attempt with a fresh
+  socket, and each failure is written to `startup.log`. A launch that succeeds
+  on the third attempt records `tcp: bound on attempt 3` rather than looking
+  identical to a first-try success.
