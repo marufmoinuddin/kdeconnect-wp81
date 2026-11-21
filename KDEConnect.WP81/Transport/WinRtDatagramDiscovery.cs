@@ -279,10 +279,14 @@ namespace KDEConnect.WP81.Transport
                 HostName host = new HostName(target);
                 string service = port.ToString(CultureInfo.InvariantCulture);
 
-                // ConnectAsync selects the local address based on the route to
-                // the target, then OutputStream sends the datagram.
-                await socket.ConnectAsync(host, service).AsTask(cancellationToken);
-                await socket.OutputStream.WriteAsync(buffer).AsTask(cancellationToken);
+                // Broadcast and multicast are sent through an IOutputStream
+                // obtained from GetOutputStreamAsync (the documented path);
+                // ConnectAsync would restrict the socket to one remote endpoint.
+                using (IOutputStream output =
+                    await socket.GetOutputStreamAsync(host, service).AsTask(cancellationToken))
+                {
+                    await output.WriteAsync(buffer).AsTask(cancellationToken);
+                }
             }
         }
 
