@@ -91,6 +91,37 @@ def check_file(path, root_for_report):
             errors.append("%s:%d: '%s' does not exist on Windows Phone 8.1"
                           % (name, line, member))
 
+    # --- rule 5: attached-property elements must hang off the root --------
+    # <Page.BottomAppBar> placed inside the content Grid produces
+    # "XamlCompiler error WMC0010: Unknown attachable member 'Page.BottomAppBar'
+    # on element 'Grid'". It is a property OF the page, so it must be a direct
+    # child of <Page>.
+    try:
+        root_el = ET.parse(path).getroot()
+        parents = {}
+        for parent in root_el.iter():
+            for child in parent:
+                parents[child] = parent
+        root_tag = root_el.tag
+        root_local = root_tag.split("}")[-1]
+        for el in root_el.iter():
+            tag = el.tag
+            if not isinstance(tag, str) or tag == root_tag or "." not in tag:
+                continue
+            local = tag.split("}")[-1]
+            prefix = local.split(".")[0]
+            if prefix != root_local:
+                continue
+            actual = parents.get(el)
+            if actual is not root_el:
+                actual_local = (actual.tag.split("}")[-1]
+                                if actual is not None else "?")
+                errors.append("%s: <%s> must be a direct child of <%s>, not of <%s> "
+                              "(XamlCompiler WMC0010)"
+                              % (name, local, root_local, actual_local))
+    except Exception:
+        pass
+
     return errors, warnings
 
 

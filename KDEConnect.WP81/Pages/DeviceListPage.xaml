@@ -76,6 +76,10 @@
                           Margin="0,20,0,0" IsActive="False"/>
         </Grid>
 
+
+    </Grid>
+
+    <!-- Attached property of the root Page: must be a direct child of <Page>. -->
         <Page.BottomAppBar>
             <CommandBar ClosedDisplayMode="Minimal">
                 <CommandBar.PrimaryCommands>
@@ -89,5 +93,4 @@
                 </CommandBar.SecondaryCommands>
             </CommandBar>
         </Page.BottomAppBar>
-    </Grid>
 </Page>
