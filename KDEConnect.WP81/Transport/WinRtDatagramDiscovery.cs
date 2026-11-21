@@ -188,6 +188,52 @@ namespace KDEConnect.WP81.Transport
         }
 
         /// <summary>
+        /// Sends only to the listed addresses. Used for manual "add device by IP",
+        /// where broadcasting as well would defeat the point: the operator is
+        /// asking us to reach one host that discovery could not find.
+        /// </summary>
+        public static async Task<List<string>> SendToExactTargetsAsync(
+            byte[] payload,
+            int targetPort,
+            IList<string> targets,
+            CancellationToken cancellationToken)
+        {
+            if (payload == null || payload.Length == 0)
+            {
+                throw new ArgumentNullException("payload");
+            }
+
+            List<string> sent = new List<string>();
+            if (targets == null)
+            {
+                return sent;
+            }
+
+            for (int i = 0; i < targets.Count; i++)
+            {
+                string target = targets[i];
+                if (string.IsNullOrEmpty(target))
+                {
+                    continue;
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    await SendOnceAsync(target.Trim(), payload, targetPort, cancellationToken);
+                    sent.Add(target.Trim());
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                }
+            }
+            return sent;
+        }
+
+        /// <summary>
         /// 1. limited broadcast, 2. subnet-directed broadcast for each local
         /// IPv4 address, 3. any operator-supplied addresses (manual IP).
         /// </summary>

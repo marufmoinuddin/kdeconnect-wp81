@@ -61,6 +61,7 @@ namespace KdeConnect.HostTests
             PinLookupTests();
             DeviceStoreTests();
             PluginPacketTests();
+            AddressValidationTests();
             IdentityLifecycleTests();
             RedactionTests();
         }
@@ -1786,6 +1787,33 @@ namespace KdeConnect.HostTests
 
             CheckEqual("find my phone type", PluginPackets.FindMyPhoneRequest,
                 PluginPackets.BuildFindMyPhone().Type);
+        }
+
+
+
+        // ------------------------------------------------------------------ //
+        //  Manual "add device by IP" relies on address validation.
+        // ------------------------------------------------------------------ //
+
+        private static void AddressValidationTests()
+        {
+            Section("IPv4 validation (manual entry)");
+
+            CheckTrue("accepts 192.168.1.42", Sanitize.IsIPv4("192.168.1.42"));
+            CheckTrue("accepts 0.0.0.0", Sanitize.IsIPv4("0.0.0.0"));
+            CheckTrue("accepts 255.255.255.255", Sanitize.IsIPv4("255.255.255.255"));
+            CheckTrue("accepts 10.0.0.1", Sanitize.IsIPv4("10.0.0.1"));
+
+            Check("rejects null", !Sanitize.IsIPv4(null), "accepted");
+            Check("rejects empty", !Sanitize.IsIPv4(""), "accepted");
+            Check("rejects three octets", !Sanitize.IsIPv4("192.168.1"), "accepted");
+            Check("rejects five octets", !Sanitize.IsIPv4("1.2.3.4.5"), "accepted");
+            Check("rejects octet over 255", !Sanitize.IsIPv4("192.168.1.256"), "accepted");
+            Check("rejects negative octet", !Sanitize.IsIPv4("192.168.1.-1"), "accepted");
+            Check("rejects letters", !Sanitize.IsIPv4("192.168.1.a"), "accepted");
+            Check("rejects hostname", !Sanitize.IsIPv4("g14.local"), "accepted");
+            Check("rejects empty octet", !Sanitize.IsIPv4("192.168..1"), "accepted");
+            Check("rejects untrimmed input", !Sanitize.IsIPv4(" 192.168.1.1 "), "accepted spaces");
         }
 
     }

@@ -246,12 +246,13 @@ namespace KDEConnect.WP81.Services
             await SendDiscoveryAnnouncementAsync(token);
         }
 
-        private async Task SendDiscoveryAnnouncementAsync(CancellationToken token)
+        /// <summary>Our own identity datagram, or null before the identity exists.</summary>
+        private byte[] BuildIdentityDatagram()
         {
             DeviceStore.OwnIdentity own = OwnIdentity;
             if (own == null)
             {
-                return;
+                return null;
             }
 
             DeviceInfo info = new DeviceInfo(
@@ -261,11 +262,62 @@ namespace KDEConnect.WP81.Services
                 ProtocolConstants.ProtocolVersion);
             info.IncomingCapabilities.AddRange(AdvertisedIncoming);
             info.OutgoingCapabilities.AddRange(AdvertisedOutgoing);
+            return info.ToUdpDiscoveryPacket(ProtocolConstants.MinTcpPort).Serialize();
+        }
 
-            byte[] payload = info.ToUdpDiscoveryPacket(ProtocolConstants.MinTcpPort).Serialize();
+        private async Task SendDiscoveryAnnouncementAsync(CancellationToken token)
+        {
+            byte[] payload = BuildIdentityDatagram();
+            if (payload == null)
+            {
+                return;
+            }
             List<string> targets = WinRtDatagramDiscovery.BuildTargets(null);
             await WinRtDatagramDiscovery.SendDiscoveryAsync(
                 payload, ProtocolConstants.UdpPort, targets, token);
+        }
+
+        /// <summary>
+        /// Manual "add device by IP": unicasts our identity to one host instead
+        /// of broadcasting.
+        ///
+        /// This is the guaranteed fallback when broadcast is blocked, and it is
+        /// deliberately one-way. We cannot dial the peer first because the
+        /// outbound connection packet needs their device id, which we do not
+        /// know - but announcing ourselves to them is enough: the peer will open
+        /// the TCP link to our listener, where we play the acceptor role.
+        /// </summary>
+        public async Task<bool> ProbeAddressAsync(string ipv4)
+        {
+            if (!Sanitize.IsIPv4(ipv4))
+            {
+                return false;
+            }
+
+            // The listener must be bound first, or the peer has nowhere to reply.
+            await StartDiscoveryAsync();
+
+            CancellationToken token;
+            lock (_gate)
+            {
+                if (_discoveryCts == null)
+                {
+                    return false;
+                }
+                token = _discoveryCts.Token;
+            }
+
+            byte[] payload = BuildIdentityDatagram();
+            if (payload == null)
+            {
+                return false;
+            }
+
+            List<string> targets = new List<string>();
+            targets.Add(ipv4);
+            List<string> sent = await WinRtDatagramDiscovery.SendToExactTargetsAsync(
+                payload, ProtocolConstants.UdpPort, targets, token);
+            return sent.Count > 0;
         }
 
         private void OnDiscoveryDatagram(string json, string fromAddress)

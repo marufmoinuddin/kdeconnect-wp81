@@ -165,9 +165,70 @@ namespace KDEConnect.WP81.Pages
             await RefreshDeviceListAsync();
         }
 
+        /// <summary>
+        /// Manual entry. We send our identity to the typed address rather than
+        /// dialling it, because dialling requires the peer's device id which is
+        /// exactly what discovery failed to give us. The peer then connects to
+        /// us and appears in the list.
+        /// </summary>
         private async void OnAddDeviceClick(object sender, RoutedEventArgs e)
         {
-            Frame.Navigate(typeof(DeviceDetailPage), null); // null = new manual entry
+            if (_deviceManager == null)
+            {
+                return;
+            }
+
+            TextBox input = new TextBox();
+            input.PlaceholderText = "192.168.1.42";
+            input.Margin = new Thickness(0, 8, 0, 0);
+
+            StackPanel content = new StackPanel();
+            TextBlock help = new TextBlock();
+            help.Text = "Enter the IP address of a device running KDE Connect on this network. " +
+                        "Use this when automatic discovery finds nothing.";
+            help.TextWrapping = TextWrapping.Wrap;
+            content.Children.Add(help);
+            content.Children.Add(input);
+
+            ContentDialog dialog = new ContentDialog();
+            dialog.Title = "Add device by IP";
+            dialog.Content = content;
+            dialog.PrimaryButtonText = "Announce to it";
+            dialog.SecondaryButtonText = "Cancel";
+            dialog.DefaultButton = ContentDialogButton.Primary;
+
+            ContentDialogResult result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary)
+            {
+                return;
+            }
+
+            string address = input.Text == null ? string.Empty : input.Text.Trim();
+            if (!Sanitize.IsIPv4(address))
+            {
+                MessageDialog bad = new MessageDialog(
+                    "That is not a valid IPv4 address. Expected something like 192.168.1.42.",
+                    "Add device by IP");
+                await bad.ShowAsync();
+                return;
+            }
+
+            bool sent = await _deviceManager.ProbeAddressAsync(address);
+            if (!sent)
+            {
+                MessageDialog failed = new MessageDialog(
+                    "Could not send to " + address + ". Check the phone is on the same network " +
+                    "and that discovery is running.", "Add device by IP");
+                await failed.ShowAsync();
+                return;
+            }
+
+            MessageDialog ok = new MessageDialog(
+                "Announced this phone to " + address + ". If that device is running KDE Connect " +
+                "it should appear in the list within a few seconds.", "Add device by IP");
+            await ok.ShowAsync();
+
+            await RefreshDeviceListAsync();
         }
 
         private void OnSettingsClick(object sender, RoutedEventArgs e)

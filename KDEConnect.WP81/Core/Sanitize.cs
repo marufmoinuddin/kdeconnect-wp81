@@ -50,6 +50,45 @@ namespace KDEConnect.WP81.Core
             return Guid.NewGuid().ToString("N");
         }
 
+        /// <summary>
+        /// True for a dotted-quad IPv4 literal with each octet in range. Used to
+        /// validate operator-typed addresses before they reach a socket.
+        /// </summary>
+        public static bool IsIPv4(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return false;
+            }
+            string[] parts = value.Split('.');
+            if (parts.Length != 4)
+            {
+                return false;
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                if (parts[i].Length == 0 || parts[i].Length > 3)
+                {
+                    return false;
+                }
+                int octet = 0;
+                for (int c = 0; c < parts[i].Length; c++)
+                {
+                    char ch = parts[i][c];
+                    if (ch < '0' || ch > '9')
+                    {
+                        return false;
+                    }
+                    octet = (octet * 10) + (ch - '0');
+                }
+                if (octet > 255)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /// <summary>True when the value is a syntactically valid device id.</summary>
         public static bool IsValidDeviceId(string value)
         {

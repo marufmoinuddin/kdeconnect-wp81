@@ -37,16 +37,19 @@ which decisions came from which source — is in [`docs/`](docs/):
 | Gate | State |
 |---|---|
 | Protocol core implemented | ✅ |
-| Mutual-TLS pairing implemented | ✅ |
+| Mutual-TLS backend implemented | ✅ |
 | Link establishment implemented | ✅ |
 | Persistence implemented | ✅ |
-| Host test suite passing (260 assertions, C# 5) | ✅ |
+| Host test suite passing (356 assertions, C# 5) | ✅ |
 | Project structure validated for VS2013 | ✅ 0 errors |
-| **Windows build (MSBuild, ARM Release)** | ❌ **NOT RUN** |
-| **Signed `.appx` packaged** | ❌ **NOT RUN** |
-| **Installed and launched on a phone** | ❌ **NOT RUN** |
-| **Paired and exercised against stock KDE Connect** | ❌ **NOT RUN** |
-| Application UI | ❌ not written |
+| Windows build (MSBuild, ARM), signed `.appx` produced | ✅ |
+| Installed and launched on a WP8.1 phone | ✅ |
+| Application UI written | ✅ |
+| Plugins: ping, battery, clipboard (out), media, touchpad, presenter, volume, find-my-phone | ✅ |
+| Discovery over UDP broadcast | implemented, **not verified on a live LAN** |
+| **Paired against stock KDE Connect** | ❌ **NOT RUN** |
+| **End-to-end feature test against a desktop** | ❌ **NOT RUN** |
+| File transfer (payload) | ❌ not implemented |
 
 The code in this repository has been compiled at the **C# 5 language level**
 and exercised against a real TLS stack on a desktop, but it has **never been
@@ -114,9 +117,16 @@ sequence in both directions over loopback with real TLS.
 
 ## What is not implemented yet
 
-- The application UI and application lifecycle (suspend/resume, reconnect)
-- The device manager and plugin dispatch
-- File receive, clipboard receive, incoming media control
+- **File transfer** (payload TLS on ports 1739-1764), send or receive
+- Clipboard *receive* — WP8.1 has no clipboard API, so this is impossible, not pending
+- Album art on the media page (needs a second HTTP fetch per track)
+- Find-my-phone raises a full-screen alert rather than a ringtone: no background
+  audio, and the app ships no sound asset
+
+Discovery works over UDP broadcast with subnet-directed fallback, plus a manual
+"add device by IP" path that unicasts our identity to one host when broadcast is
+blocked. None of it has been exercised against a real desktop yet, so treat it as
+implemented-but-unproven rather than known-good.
 
 See [`docs/known-limitations.md`](docs/known-limitations.md) for the platform
 constraints that shape the list above, and the compatibility matrix for the
