@@ -118,8 +118,25 @@ python3 tools/xaml-check.py .
 
 It rejects malformed XAML, a `StaticResource` that references a key declared
 later in the same file (`WinRT` resolves resources in document order), a
-`ThemeResource` key outside the confirmed Phone 8.1 set, and members known to be
-missing on the phone (`docs/known-limitations.md` L9 and L10).
+`ThemeResource` key outside the confirmed Phone 8.1 set, members known to be
+missing on the phone (`docs/known-limitations.md` L9 and L10), and a
+`Page.*` attached-property element nested inside the content tree
+(`WMC0010: Unknown attachable member 'Page.BottomAppBar' on element 'Grid'`).
+
+### Icons
+
+The tile and logo assets are generated, not drawn by hand, so they can be
+changed consistently:
+
+```
+python3 tools/make-icons.py          # writes KDEConnect.WP81/Assets/*.scale-240.png
+```
+
+One white mark on a transparent background, sized and centred from its own ink
+bounds: the phone silhouette plus two arcs. Transparent tiles take the system
+accent colour, which is what keeps them looking native rather than pasted. The
+splash screen keeps a dark bed because a fully transparent splash renders as a
+white flash. Requires Pillow.
 
 It compiles the phone project's own `Core/`, `Transport/` (portable files) and
 `Security/` sources with **`LangVersion=5`**, so anything that passes here is
