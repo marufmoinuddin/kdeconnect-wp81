@@ -353,6 +353,20 @@ namespace KDEConnect.WP81.Transport
                 HostName host = new HostName(target);
                 string service = port.ToString(CultureInfo.InvariantCulture);
 
+                // Bind to an ephemeral port BEFORE asking for the output stream.
+                // Microsoft's DatagramSocket sample binds first; an unbound
+                // socket is not guaranteed to emit a broadcast on the WLAN
+                // adapter, and a broadcast that never reaches the wire is
+                // indistinguishable from a peer that ignores us.
+                try
+                {
+                    await socket.BindServiceNameAsync(string.Empty).AsTask(cancellationToken);
+                }
+                catch (Exception)
+                {
+                    // Binding is best-effort; still try to send.
+                }
+
                 // Broadcast and multicast are sent through an IOutputStream
                 // obtained from GetOutputStreamAsync (the documented path);
                 // ConnectAsync would restrict the socket to one remote endpoint.

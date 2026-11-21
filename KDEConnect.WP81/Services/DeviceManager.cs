@@ -36,6 +36,13 @@ namespace KDEConnect.WP81.Services
         private DeviceStore.OwnIdentity _ownIdentity;
         private CancellationTokenSource _discoveryCts;
 
+        /// <summary>
+        /// Throttles unicast discovery replies per address. A desktop
+        /// re-broadcasts every few seconds; answering each one immediately would
+        /// turn two devices into a packet storm.
+        /// </summary>
+        private readonly RateLimitGuard _replyGuard = new RateLimitGuard(5000);
+
         public DeviceManager(DeviceStore store, LinkManager linkManager, PluginManager pluginManager)
         {
             if (store == null)
@@ -207,6 +214,50 @@ namespace KDEConnect.WP81.Services
 
             await _discovery.StartReceivingAsync(token);
             await SendDiscoveryAnnouncementAsync(token);
+
+            // Broadcasts get dropped. Repeating a few times over the first
+            // seconds means one lost datagram does not hide this device until
+            // the next broadcast interval.
+            Task ignored = AnnouncementRetriesAsync();
+        }
+
+        private async Task AnnouncementRetriesAsync()
+        {
+            int[] delaysMs = new int[] { 1000, 3000, 7000, 15000 };
+            for (int i = 0; i < delaysMs.Length; i++)
+            {
+                try
+                {
+                    await Task.Delay(delaysMs[i]);
+                }
+                catch (Exception)
+                {
+                    return;
+                }
+
+                CancellationToken token;
+                lock (_gate)
+                {
+                    if (_discoveryCts == null)
+                    {
+                        return;
+                    }
+                    token = _discoveryCts.Token;
+                }
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await SendDiscoveryAnnouncementAsync(token);
+                }
+                catch (Exception)
+                {
+                    // Keep trying the remaining slots.
+                }
+            }
         }
 
         public void StopDiscovery()
@@ -359,11 +410,86 @@ namespace KDEConnect.WP81.Services
                 }
 
                 NotifyDeviceListChanged();
+
+                // Answering is what makes THIS device discoverable to others.
+                // Broadcast-send is undocumented on WP8.1 (L7) and may simply be
+                // dropped, so relying on our own announcement alone would leave
+                // us invisible; a unicast reply to whoever broadcast at us does
+                // not depend on broadcast at all. Only real discovery packets
+                // (those carrying tcpPort) are answered.
+                if (np.Has("tcpPort"))
+                {
+                    ReplyUnicast(fromAddress);
+                }
             }
             catch (Exception)
             {
                 // One malformed datagram must never stop the listener.
             }
+        }
+
+        /// <summary>
+        /// Sends our identity straight to one address, at most once per
+        /// <see cref="_replyGuard"/> window. Fire-and-forget: a failed reply must
+        /// never disturb the listener thread.
+        /// </summary>
+        private void ReplyUnicast(string address)
+        {
+            // Deliberately NOT restricted to dotted-quad: the OS may report the
+            // sender as an IPv6 literal, and dropping the reply in that case
+            // would make this device undiscoverable for no good reason.
+            // RemoteAddress comes from the socket, not from the packet body.
+            if (string.IsNullOrEmpty(address))
+            {
+                return;
+            }
+
+            long now = NowUnixMillis();
+            if (_replyGuard.WouldDrop(address, now))
+            {
+                return;
+            }
+            _replyGuard.Record(address, now);
+
+            Task ignored = ReplyUnicastAsync(address);
+        }
+
+        private async Task ReplyUnicastAsync(string address)
+        {
+            try
+            {
+                CancellationToken token;
+                lock (_gate)
+                {
+                    if (_discoveryCts == null)
+                    {
+                        return;
+                    }
+                    token = _discoveryCts.Token;
+                }
+
+                byte[] payload = BuildIdentityDatagram();
+                if (payload == null)
+                {
+                    return;
+                }
+
+                List<string> targets = new List<string>();
+                targets.Add(address);
+                await WinRtDatagramDiscovery.SendToExactTargetsAsync(
+                    payload, ProtocolConstants.UdpPort, targets, token);
+            }
+            catch (Exception)
+            {
+                // A reply that fails is not an error worth surfacing: the next
+                // broadcast will trigger another attempt.
+            }
+        }
+
+        private static long NowUnixMillis()
+        {
+            return (long)(DateTime.UtcNow -
+                new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
         }
 
         // ---- connection ------------------------------------------------------

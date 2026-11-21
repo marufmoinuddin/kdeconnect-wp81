@@ -24,6 +24,15 @@
     </Application>
   </Applications>
   <Capabilities>
+    <!--
+      internetClientServer is the capability Microsoft's UDP/socket how-tos tell
+      you to select for a Windows Phone build, and on phone it already grants
+      full local and Internet access, client and server. privateNetworkClientServer
+      is documented as equivalent there; it is declared as well because LAN
+      reachability is the one thing this app cannot gamble on, and declaring both
+      is harmless.
+    -->
     <Capability Name="internetClientServer" />
+    <Capability Name="privateNetworkClientServer" />
   </Capabilities>
 </Package>
