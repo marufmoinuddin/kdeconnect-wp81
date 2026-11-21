@@ -275,16 +275,14 @@ namespace KDEConnect.WP81.Transport
         {
             using (DatagramSocket socket = new DatagramSocket())
             {
-                // Bind to any local endpoint first: WinRT requires a bound
-                // socket before SendToAsync, and binding to the source address
-                // is what makes subnet-directed broadcast leave the right NIC.
-                await socket.BindEndpointAsync(null, null).AsTask(cancellationToken);
-
                 IBuffer buffer = payload.AsBuffer();
                 HostName host = new HostName(target);
                 string service = port.ToString(CultureInfo.InvariantCulture);
 
-                await socket.SendToAsync(buffer, host, service).AsTask(cancellationToken);
+                // ConnectAsync selects the local address based on the route to
+                // the target, then OutputStream sends the datagram.
+                await socket.ConnectAsync(host, service).AsTask(cancellationToken);
+                await socket.OutputStream.WriteAsync(buffer).AsTask(cancellationToken);
             }
         }
 

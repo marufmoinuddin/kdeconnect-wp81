@@ -112,7 +112,7 @@ namespace KDEConnect.WP81.Transport
             {
                 // Strict UTF-8: malformed sequences drop the frame rather than
                 // silently substituting replacement characters.
-                return new UTF8Encoding(false, true).GetString(frame);
+                return new UTF8Encoding(false, true).GetString(frame, 0, frame.Length);
             }
             catch (DecoderFallbackException ex)
             {

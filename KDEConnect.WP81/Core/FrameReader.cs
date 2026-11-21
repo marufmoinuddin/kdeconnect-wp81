@@ -95,7 +95,7 @@ namespace KDEConnect.WP81.Core
                 // Strict UTF-8: reject malformed sequences instead of silently
                 // substituting replacement characters.
                 UTF8Encoding strict = new UTF8Encoding(false, true);
-                return strict.GetString(frameBytes);
+                return strict.GetString(frameBytes, 0, frameBytes.Length);
             }
             catch (DecoderFallbackException)
             {

@@ -350,7 +350,7 @@ namespace KDEConnect.WP81.Core
             }
             try
             {
-                return new UTF8Encoding(false, true).GetString(data);
+                return new UTF8Encoding(false, true).GetString(data, 0, data.Length);
             }
             catch (DecoderFallbackException ex)
             {

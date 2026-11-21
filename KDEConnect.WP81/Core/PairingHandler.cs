@@ -280,7 +280,7 @@ namespace KDEConnect.WP81.Core
                 b = tmp;
             }
 
-            byte[] timestampBytes = Encoding.ASCII.GetBytes(
+            byte[] timestampBytes = Encoding.UTF8.GetBytes(
                 timestampSeconds.ToString(CultureInfo.InvariantCulture));
 
             byte[] buffer = new byte[a.Length + b.Length + timestampBytes.Length];

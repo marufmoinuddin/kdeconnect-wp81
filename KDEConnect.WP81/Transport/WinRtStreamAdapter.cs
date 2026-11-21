@@ -118,7 +118,7 @@ namespace KDEConnect.WP81.Transport
 
             // Copy the requested window into the buffer we hand to WinRT.
             byte[] window = new byte[count];
-            Buffer.BlockCopy(buffer, offset, window, 0, count);
+            System.Buffer.BlockCopy(buffer, offset, window, 0, count);
             IBuffer toWrite = window.AsBuffer();
 
             cancellationToken.ThrowIfCancellationRequested();
