@@ -89,6 +89,23 @@ namespace KDEConnect.WP81.Services
             }
         }
 
+        /// <summary>Device ids with an active link; used by polling plugins.</summary>
+        public List<string> GetConnectedDeviceIds()
+        {
+            List<string> ids = new List<string>();
+            lock (_gate)
+            {
+                foreach (KeyValuePair<string, LinkSession> pair in _sessions)
+                {
+                    if (pair.Value.IsActive)
+                    {
+                        ids.Add(pair.Key);
+                    }
+                }
+            }
+            return ids;
+        }
+
         public int ConnectedCount
         {
             get

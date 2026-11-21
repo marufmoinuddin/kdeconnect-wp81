@@ -275,7 +275,16 @@ namespace KDEConnect.WP81
 
                 // Only implemented plugins contribute capabilities, so a peer is
                 // never told about something this build cannot actually do.
+                // Adding a plugin here is what makes its capability appear on the
+                // wire - there is no separate capability table to keep in sync.
                 PluginManager.RegisterPlugin(new PingPlugin());
+                PluginManager.RegisterPlugin(new BatteryPlugin(new WinRtBatterySource()));
+                PluginManager.RegisterPlugin(new ClipboardPlugin());
+                PluginManager.RegisterPlugin(new MprisPlugin());
+                PluginManager.RegisterPlugin(new MousepadPlugin());
+                PluginManager.RegisterPlugin(new PresenterPlugin());
+                PluginManager.RegisterPlugin(new SystemVolumePlugin());
+                PluginManager.RegisterPlugin(new FindMyPhonePlugin());
 
                 localInfo.IncomingCapabilities.AddRange(PluginManager.GetIncomingCapabilities());
                 localInfo.OutgoingCapabilities.AddRange(PluginManager.GetOutgoingCapabilities());

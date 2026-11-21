@@ -14,6 +14,12 @@ namespace KDEConnect.WP81.Plugins
     {
         public string Name { get { return "ping"; } }
 
+        public void Initialize(IPluginHost host)
+        {
+            // Ping needs nothing from the host: replies go through the
+            // sendReply callback supplied with each incoming packet.
+        }
+
         public IEnumerable<string> HandledPacketTypes
         {
             get { return new[] { ProtocolConstants.PacketTypePing }; }

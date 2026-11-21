@@ -6,14 +6,29 @@ using KDEConnect.WP81.Transport;
 namespace KDEConnect.WP81.Services
 {
     /// <summary>
+    /// What a plugin is allowed to do to the outside world. Kept narrow on
+    /// purpose: a plugin can send packets and ask who is connected, and that
+    /// is all. Plugin code never touches a socket directly.
+    /// </summary>
+    public interface IPluginHost
+    {
+        bool SendPacket(string deviceId, NetworkPacket packet);
+        List<string> GetConnectedDevices();
+    }
+
+    /// <summary>
     /// Plugin interface. Each plugin declares the packet types it handles
     /// (incoming) and the packet types it can send (outgoing). Capabilities
-    /// advertised to peers must match what is actually implemented.
+    /// advertised to peers are derived from these, so they always match what is
+    /// actually implemented.
     /// </summary>
     public interface IPlugin
     {
         /// <summary>Unique plugin name (matches KDE Connect plugin IDs).</summary>
         string Name { get; }
+
+        /// <summary>Called once, before the plugin is used.</summary>
+        void Initialize(IPluginHost host);
 
         /// <summary>Packet types this plugin handles when received from a peer.</summary>
         IEnumerable<string> HandledPacketTypes { get; }
@@ -36,7 +51,7 @@ namespace KDEConnect.WP81.Services
     /// Manages plugin registration and packet dispatch. Ensures only
     /// implemented capabilities are advertised.
     /// </summary>
-    public sealed class PluginManager
+    public sealed class PluginManager : IPluginHost
     {
         private readonly Dictionary<string, IPlugin> _plugins = new Dictionary<string, IPlugin>(StringComparer.Ordinal);
         private readonly LinkManager _linkManager;
@@ -53,8 +68,18 @@ namespace KDEConnect.WP81.Services
 
         public void RegisterPlugin(IPlugin plugin)
         {
-            if (plugin == null) throw new ArgumentNullException("plugin");
+            if (plugin == null)
+            {
+                throw new ArgumentNullException("plugin");
+            }
+            plugin.Initialize(this);
             _plugins[plugin.Name] = plugin;
+        }
+
+        /// <summary>Plugins registered so far, for the diagnostics page.</summary>
+        public List<string> GetRegisteredPluginNames()
+        {
+            return new List<string>(_plugins.Keys);
         }
 
         public IPlugin GetPlugin(string name)
@@ -135,6 +160,12 @@ namespace KDEConnect.WP81.Services
         public bool SendPacket(string deviceId, NetworkPacket packet)
         {
             return _linkManager.SendPacket(deviceId, packet);
+        }
+
+        /// <summary>Device ids with a live link, for plugins that poll.</summary>
+        public List<string> GetConnectedDevices()
+        {
+            return _linkManager.GetConnectedDeviceIds();
         }
     }
 }

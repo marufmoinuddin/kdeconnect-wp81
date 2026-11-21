@@ -105,10 +105,18 @@
     <Compile Include="Core\Redactor.cs" />
     <Compile Include="Services\StorageBlobStore.cs" />
     <Compile Include="Services\CrashLog.cs" />
+    <Compile Include="Services\WinRtBatterySource.cs" />
     <Compile Include="Services\DeviceManager.cs" />
     <Compile Include="Services\LinkManager.cs" />
     <Compile Include="Services\PluginManager.cs" />
     <Compile Include="Plugins\PingPlugin.cs" />
+    <Compile Include="Plugins\BatteryPlugin.cs" />
+    <Compile Include="Plugins\ClipboardPlugin.cs" />
+    <Compile Include="Plugins\MprisPlugin.cs" />
+    <Compile Include="Plugins\MousepadPlugin.cs" />
+    <Compile Include="Plugins\PresenterPlugin.cs" />
+    <Compile Include="Plugins\SystemVolumePlugin.cs" />
+    <Compile Include="Plugins\FindMyPhonePlugin.cs" />
     <Compile Include="Pages\DeviceListPage.xaml.cs">
       <DependentUpon>DeviceListPage.xaml</DependentUpon>
     </Compile>
@@ -129,6 +137,9 @@
     </Compile>
     <Compile Include="Core\Sanitize.cs" />
     <Compile Include="Core\DeviceStore.cs" />
+    <Compile Include="Core\MprisState.cs" />
+    <Compile Include="Core\VolumeSink.cs" />
+    <Compile Include="Core\PluginPackets.cs" />
     <Compile Include="Transport\TlsContracts.cs" />
     <Compile Include="Transport\WinRtTcp.cs" />
     <Compile Include="Transport\WinRtDatagramDiscovery.cs" />

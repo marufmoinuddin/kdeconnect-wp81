@@ -60,6 +60,7 @@ namespace KdeConnect.HostTests
             LinkEstablisherTests();
             PinLookupTests();
             DeviceStoreTests();
+            PluginPacketTests();
             IdentityLifecycleTests();
             RedactionTests();
         }
@@ -316,6 +317,11 @@ namespace KdeConnect.HostTests
         }
 
         // ------------------------------------------------------------------ //
+
+        private static void CheckTrue(string name, bool condition)
+        {
+            Check(name, condition, "expected true");
+        }
 
         private static void Check(string name, bool condition, string detail)
         {
@@ -1600,6 +1606,186 @@ namespace KdeConnect.HostTests
                 tofu.Acceptor == null ? "null" : tofu.Acceptor.Failure);
             if (tofu.Acceptor != null && tofu.Acceptor.Session != null) tofu.Acceptor.Session.Close();
             if (tofu.Dialer != null && tofu.Dialer.Session != null) tofu.Dialer.Session.Close();
+        }
+
+
+
+        // ------------------------------------------------------------------ //
+        //  Plugin wire format. The plugin classes themselves only wrap these.
+        // ------------------------------------------------------------------ //
+
+        private static NetworkPacket RoundTrip(NetworkPacket packet)
+        {
+            string frame = System.Text.Encoding.UTF8.GetString(packet.Serialize(), 0,
+                packet.Serialize().Length);
+            return NetworkPacket.Unserialize(frame);
+        }
+
+        private static void PluginPacketTests()
+        {
+            Section("Plugin packets - battery");
+
+            NetworkPacket bat = PluginPackets.BuildBattery(57, true);
+            CheckEqual("battery type", PluginPackets.Battery, bat.Type);
+            CheckEqual("battery charge", 57, bat.GetInt("currentCharge", -1));
+            CheckTrue("battery charging flag", bat.GetBool("isCharging", false));
+
+            // Unknown charging state must not be sent as false.
+            NetworkPacket batUnknown = PluginPackets.BuildBattery(42, (bool?)null);
+            Check("battery omits isCharging when unknown", !batUnknown.Has("isCharging"), "sent a guess");
+
+            CheckEqual("battery clamps high", 100,
+                PluginPackets.BuildBattery(140, (bool?)null).GetInt("currentCharge", -1));
+            CheckEqual("battery clamps low", 0,
+                PluginPackets.BuildBattery(-9, (bool?)null).GetInt("currentCharge", -1));
+
+            BatteryState parsed = PluginPackets.ParseBattery(RoundTrip(bat));
+            Check("battery round-trips through serialisation", parsed != null, "null");
+            CheckEqual("battery parsed charge", 57, parsed.CurrentCharge);
+            CheckTrue("battery parsed charging", parsed.IsCharging);
+            CheckTrue("battery marks charge present", parsed.HasCharge);
+            CheckEqual("battery display", "57% (charging)", parsed.DisplayText);
+
+            Check("battery rejects other packet types",
+                PluginPackets.ParseBattery(new NetworkPacket(ProtocolConstants.PacketTypePing)) == null, "accepted");
+
+            Section("Plugin packets - clipboard and ping");
+
+            NetworkPacket clip = PluginPackets.BuildClipboard("hello world", 1700000000000L);
+            CheckEqual("clipboard type", PluginPackets.Clipboard, clip.Type);
+            NetworkPacket clipBack = RoundTrip(clip);
+            CheckEqual("clipboard content survives", "hello world", clipBack.GetString("content", null));
+            CheckEqual("clipboard timestamp survives", 1700000000000L, clipBack.GetLong("timestamp", 0));
+
+            Section("Plugin packets - media control");
+
+            NetworkPacket play = PluginPackets.BuildMprisAction("player1", PluginPackets.MprisAction.Play);
+            CheckEqual("mpris request type", PluginPackets.MprisRequest, play.Type);
+            CheckEqual("mpris action", "Play", play.GetString("action", null));
+            CheckEqual("mpris player", "player1", play.GetString("player", null));
+            CheckEqual("mpris seek volume clamps", 100,
+                PluginPackets.BuildMprisSetVolume(null, 250).GetInt("setVolume", -1));
+
+            // State parse, as the desktop sends it.
+            NetworkPacket state = new NetworkPacket(PluginPackets.MprisState);
+            state.SetString("player", "spotify");
+            state.SetString("title", "Song");
+            state.SetString("artist", "Artist");
+            state.SetString("album", "Album");
+            state.SetBool("isPlaying", true);
+            state.SetLong("length", 215000L);
+            state.SetLong("pos", 65000L);
+            state.SetInt("volume", 60);
+            state.SetBool("canPlay", true);
+            state.SetBool("canGoNext", true);
+
+            MprisState ms = MprisState.FromPacket(RoundTrip(state));
+            Check("mpris state parses", ms != null, "null");
+            CheckEqual("mpris title", "Song", ms.Title);
+            CheckEqual("mpris artist", "Artist", ms.Artist);
+            CheckTrue("mpris playing", ms.IsPlaying);
+            CheckEqual("mpris length", 215000L, ms.Length);
+            CheckTrue("mpris can go next", ms.CanGoNext);
+            CheckEqual("mpris display line", "Song — Artist", ms.DisplayLine);
+            CheckEqual("mpris position line", "1:05 / 3:35", ms.PositionLine);
+
+            Check("mpris rejects wrong type",
+                MprisState.FromPacket(new NetworkPacket(PluginPackets.Battery)) == null, "accepted");
+            Check("mpris rejects an empty state packet",
+                MprisState.FromPacket(new NetworkPacket(PluginPackets.MprisState)) == null, "accepted");
+
+            MprisState noMedia = new MprisState();
+            CheckEqual("mpris empty display", "(no media)", noMedia.DisplayLine);
+            CheckEqual("mpris formats zero", "0:00", MprisState.FormatMilliseconds(0));
+            CheckEqual("mpris formats negative", "0:00", MprisState.FormatMilliseconds(-5));
+
+            Section("Plugin packets - touchpad and presenter");
+
+            NetworkPacket mv = PluginPackets.BuildMouseMove(12.5, -3.25);
+            CheckEqual("mousepad type", PluginPackets.MousepadRequest, mv.Type);
+            NetworkPacket mvBack = RoundTrip(mv);
+            Check("mouse dx survives", Math.Abs(mvBack.GetDouble("dx", 0) - 12.5) < 0.0001, "lost");
+            Check("mouse dy survives", Math.Abs(mvBack.GetDouble("dy", 0) + 3.25) < 0.0001, "lost");
+            Check("move is not flagged as scroll", !mv.Has("scroll"), "flagged");
+
+            NetworkPacket sc = PluginPackets.BuildMouseScroll(0, 1);
+            CheckTrue("scroll flagged", sc.GetBool("scroll", false));
+
+            NetworkPacket clk = PluginPackets.BuildMouseClick(PluginPackets.MouseButton.Right);
+            CheckTrue("right click flag", clk.GetBool("rightclick", false));
+
+            NetworkPacket key = PluginPackets.BuildKey("a", null, false, true, false, false);
+            CheckEqual("key char", "a", key.GetString("key", null));
+            CheckTrue("key ctrl modifier", key.GetBool("ctrl", false));
+            Check("key omits unset modifiers", !key.Has("alt") && !key.Has("shift"), "sent junk");
+
+            NetworkPacket special = PluginPackets.BuildKey(null, PluginPackets.SpecialKey.Enter, false, false, false, false);
+            CheckEqual("special key", "Enter", special.GetString("specialKey", null));
+            Check("special key omits key field", !special.Has("key"), "sent both");
+
+            NetworkPacket pres = PluginPackets.BuildPresenterMove(0.1f, -0.2f);
+            CheckEqual("presenter type", PluginPackets.Presenter, pres.Type);
+            CheckTrue("presenter stop flag",
+                PluginPackets.BuildPresenterStop().GetBool("stop", false));
+
+            Section("Plugin packets - system volume");
+
+            NetworkPacket req = PluginPackets.BuildSystemVolumeRequest();
+            CheckEqual("volume request type", PluginPackets.SystemVolumeRequest, req.Type);
+
+            NetworkPacket setv = PluginPackets.BuildSystemVolumeSet("PulseAudio/Sink/x", 42);
+            CheckEqual("volume set name", "PulseAudio/Sink/x", setv.GetString("name", null));
+            CheckEqual("volume set clamps", 100,
+                PluginPackets.BuildSystemVolumeSet("s", 500).GetInt("volume", -1));
+
+            NetworkPacket mute = PluginPackets.BuildSystemVolumeMute("s", true);
+            CheckTrue("mute flag", mute.GetBool("muted", false));
+            Check("mute omits volume", !mute.Has("volume"), "sent volume too");
+
+            // sinkList array shape
+            NetworkPacket sinks = new NetworkPacket(PluginPackets.SystemVolumeState);
+            JArray list = new JArray();
+            JObject s1 = new JObject();
+            s1.Set("name", new JString("alsa_output.pci-0000_00_1f.3"));
+            s1.Set("volume", JNumber.From(35));
+            s1.Set("muted", new JBool(false));
+            JObject s2 = new JObject();
+            s2.Set("name", new JString("PulseAudio/Sink/hdmi"));
+            s2.Set("muted", new JBool(true));
+            list.Add(s1);
+            list.Add(s2);
+            sinks.Body.Set("sinkList", list);
+
+            System.Collections.Generic.List<VolumeSink> parsedSinks =
+                VolumeSink.ListFromPacket(RoundTrip(sinks));
+            CheckEqual("sink list parsed", 2, parsedSinks.Count);
+            CheckEqual("sink 1 volume", 35, parsedSinks[0].Volume);
+            CheckTrue("sink 2 muted", parsedSinks[1].Muted);
+            CheckEqual("sink display name trims prefix", "hdmi", parsedSinks[1].DisplayName);
+
+            // single-sink update shape
+            NetworkPacket one = new NetworkPacket(PluginPackets.SystemVolumeState);
+            one.SetString("name", "PulseAudio/Sink/a");
+            one.SetInt("volume", 70);
+            System.Collections.Generic.List<VolumeSink> oneSink = VolumeSink.ListFromPacket(RoundTrip(one));
+            CheckEqual("single sink update parsed", 1, oneSink.Count);
+            CheckEqual("single sink volume", 70, oneSink[0].Volume);
+
+            CheckEqual("volume rejects wrong type", 0,
+                VolumeSink.ListFromPacket(new NetworkPacket(PluginPackets.Battery)).Count);
+
+            Section("Plugin packets - share and find my phone");
+
+            NetworkPacket text = PluginPackets.BuildShareText("https://example.org");
+            CheckEqual("share type", PluginPackets.ShareRequest, text.Type);
+            CheckEqual("share text survives", "https://example.org",
+                RoundTrip(text).GetString("text", null));
+
+            NetworkPacket url = PluginPackets.BuildShareUrl("https://example.org/x");
+            CheckEqual("share url field", "https://example.org/x", url.GetString("url", null));
+
+            CheckEqual("find my phone type", PluginPackets.FindMyPhoneRequest,
+                PluginPackets.BuildFindMyPhone().Type);
         }
 
     }
