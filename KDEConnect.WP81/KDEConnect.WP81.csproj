@@ -109,22 +109,22 @@
     <Compile Include="Services\PluginManager.cs" />
     <Compile Include="Plugins\PingPlugin.cs" />
     <Compile Include="Pages\DeviceListPage.xaml.cs">
-      <DependentUpon>Pages\DeviceListPage.xaml</DependentUpon>
+      <DependentUpon>DeviceListPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\DeviceDetailPage.xaml.cs">
-      <DependentUpon>Pages\DeviceDetailPage.xaml</DependentUpon>
+      <DependentUpon>DeviceDetailPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PairingDialog.xaml.cs">
-      <DependentUpon>Pages\PairingDialog.xaml</DependentUpon>
+      <DependentUpon>PairingDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\SettingsPage.xaml.cs">
-      <DependentUpon>Pages\SettingsPage.xaml</DependentUpon>
+      <DependentUpon>SettingsPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\AboutPage.xaml.cs">
-      <DependentUpon>Pages\AboutPage.xaml</DependentUpon>
+      <DependentUpon>AboutPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\DiagnosticsPage.xaml.cs">
-      <DependentUpon>Pages\DiagnosticsPage.xaml</DependentUpon>
+      <DependentUpon>DiagnosticsPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Core\Sanitize.cs" />
     <Compile Include="Core\DeviceStore.cs" />

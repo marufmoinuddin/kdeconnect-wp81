@@ -109,19 +109,24 @@
         <!-- Pull-to-refresh indicator -->
         <ProgressRing x:Name="RefreshRing" Grid.Row="1" Width="40" Height="40" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,24,0,0" IsActive="False"/>
 
-        <!-- App bar -->
-        <Page.BottomAppBar>
-            <CommandBar ClosedDisplayMode="Minimal" Background="{ThemeResource AppBarBackgroundThemeBrush}">
-                <CommandBar.PrimaryCommands>
-                    <AppBarButton x:Name="RefreshButton" Icon="Refresh" Label="Refresh" Click="OnRefreshClick"/>
-                    <AppBarButton x:Name="AddDeviceButton" Icon="Add" Label="Add by IP" Click="OnAddDeviceClick"/>
-                    <AppBarButton x:Name="SettingsButton" Icon="Setting" Label="Settings" Click="OnSettingsClick"/>
-                </CommandBar.PrimaryCommands>
-                <CommandBar.SecondaryCommands>
-                    <AppBarButton Icon="Help" Label="About" Click="OnAboutClick"/>
-                    <AppBarButton Icon="Document" Label="Diagnostics" Click="OnDiagnosticsClick"/>
-                </CommandBar.SecondaryCommands>
-            </CommandBar>
-        </Page.BottomAppBar>
     </Grid>
+
+    <!--
+      Property-element syntax: an attached property of the root Page must be a
+      direct child of <Page>, not of the content Grid, or the XAML compiler
+      reports "Unknown attachable member 'Page.BottomAppBar' on element 'Grid'".
+    -->
+    <Page.BottomAppBar>
+        <CommandBar ClosedDisplayMode="Minimal" Background="{ThemeResource AppBarBackgroundThemeBrush}">
+            <CommandBar.PrimaryCommands>
+                <AppBarButton x:Name="RefreshButton" Icon="Refresh" Label="Refresh" Click="OnRefreshClick"/>
+                <AppBarButton x:Name="AddDeviceButton" Icon="Add" Label="Add by IP" Click="OnAddDeviceClick"/>
+                <AppBarButton x:Name="SettingsButton" Icon="Setting" Label="Settings" Click="OnSettingsClick"/>
+            </CommandBar.PrimaryCommands>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton Icon="Help" Label="About" Click="OnAboutClick"/>
+                <AppBarButton Icon="Document" Label="Diagnostics" Click="OnDiagnosticsClick"/>
+            </CommandBar.SecondaryCommands>
+        </CommandBar>
+    </Page.BottomAppBar>
 </Page>
