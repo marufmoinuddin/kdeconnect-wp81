@@ -114,7 +114,15 @@ device:
 
 ```
 python3 tools/xaml-check.py .
+python3 tools/csproj-check.py .
 ```
+
+`csproj-check.py` verifies the project file lists exactly what exists on disk: a
+`.cs` file that nothing compiles is silently dead code, and a `Page` missing from
+the project produces either a "parent file cannot be found" warning or a screen
+that does not exist in the build. Both have cost Windows round-trips here, and
+both are two directory walks away. It also enforces the `<DependentUpon>` pairing
+that Visual Studio uses to nest code-behind files.
 
 It rejects malformed XAML, a `StaticResource` that references a key declared
 later in the same file (`WinRT` resolves resources in document order), a
