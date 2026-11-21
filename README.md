@@ -108,6 +108,19 @@ dotnet build
 dotnet run
 ```
 
+Static XAML checks live in the repository too, because the failures they catch
+are invisible to a C# compiler and only surface as a `XamlParseException` on the
+device:
+
+```
+python3 tools/xaml-check.py .
+```
+
+It rejects malformed XAML, a `StaticResource` that references a key declared
+later in the same file (`WinRT` resolves resources in document order), a
+`ThemeResource` key outside the confirmed Phone 8.1 set, and members known to be
+missing on the phone (`docs/known-limitations.md` L9 and L10).
+
 It compiles the phone project's own `Core/`, `Transport/` (portable files) and
 `Security/` sources with **`LangVersion=5`**, so anything that passes here is
 also valid for the VS2013 compiler. It covers JSON framing, packets, pairing

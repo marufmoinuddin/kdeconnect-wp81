@@ -10,6 +10,9 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Page.Resources>
+        <!-- Declared before the templates that use it: a StaticResource
+             cannot forward-reference a key defined later in the file. -->
+        <pages:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <DataTemplate x:Key="DeviceItemTemplate">
             <Grid Margin="12,8" Tapped="OnDeviceTapped" Tag="{Binding DeviceId}">
                 <Grid.RowDefinitions>
@@ -70,7 +73,6 @@
             </StackPanel>
         </DataTemplate>
 
-        <pages:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </Page.Resources>
 
     <Grid>
