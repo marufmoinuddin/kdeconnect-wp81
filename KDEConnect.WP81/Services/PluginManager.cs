@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using KDEConnect.WP81.Core;
+using KDEConnect.WP81.Transport;
 
 namespace KDEConnect.WP81.Services
 {
@@ -105,7 +106,7 @@ namespace KDEConnect.WP81.Services
 
         private void OnPacketReceived(object sender, PacketEventArgs e)
         {
-            if (e?.Packet == null) return;
+            if (e == null || e.Packet == null) return;
 
             // First try plugins that explicitly handle this packet type
             foreach (var p in _plugins.Values)

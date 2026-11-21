@@ -89,6 +89,13 @@ namespace KDEConnect.WP81.Pages
             _deviceManager = ((App)App.Current).DeviceManager;
             DeviceListView.ItemsSource = _items;
 
+            if (_deviceManager == null)
+            {
+                // Startup failed; App.StartupError explains why.
+                EmptyState.Visibility = Visibility.Visible;
+                return;
+            }
+
             _deviceManager.DeviceListChanged += OnDeviceListChanged;
             _deviceManager.OwnIdentityChanged += OnOwnIdentityChanged;
 
@@ -104,6 +111,10 @@ namespace KDEConnect.WP81.Pages
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            if (_deviceManager == null)
+            {
+                return;
+            }
             _deviceManager.DeviceListChanged -= OnDeviceListChanged;
             _deviceManager.OwnIdentityChanged -= OnOwnIdentityChanged;
         }
@@ -152,7 +163,12 @@ namespace KDEConnect.WP81.Pages
         private void OnDeviceTapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
         {
             FrameworkElement element = sender as FrameworkElement;
-            if (element != null && element.Tag is string deviceId)
+            if (element == null)
+            {
+                return;
+            }
+            string deviceId = element.Tag as string;
+            if (!string.IsNullOrEmpty(deviceId))
             {
                 Frame.Navigate(typeof(DeviceDetailPage), deviceId);
             }
@@ -166,7 +182,8 @@ namespace KDEConnect.WP81.Pages
             try
             {
                 await _deviceManager.StartDiscoveryAsync();
-                await Task.Delay(2000); // give discovery time to populate
+                await _deviceManager.RefreshAsync();
+                await Task.Delay(1500); // give peers time to answer
 
                 List<DeviceRecord> records = _deviceManager.GetAllDevices();
                 _items.Clear();
@@ -179,8 +196,8 @@ namespace KDEConnect.WP81.Pages
                         IsPaired = r.IsPaired,
                         IsConnected = _deviceManager.IsConnected(r.DeviceId),
                         IsConnecting = _deviceManager.IsConnecting(r.DeviceId),
-                        LastSeenAddress = r.LastSeenAddress,
-                        LastSeenTcpPort = r.LastSeenTcpPort,
+                        LastSeenAddress = r.LastAddress,
+                        LastSeenTcpPort = r.LastTcpPort,
                         IncomingCapabilities = r.IncomingCapabilities,
                         OutgoingCapabilities = r.OutgoingCapabilities,
                         PinnedCertificateDer = r.PinnedCertificateDer

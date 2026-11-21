@@ -89,6 +89,58 @@ namespace KDEConnect.WP81.Core
             public byte[] PrivateKeyDer { get; set; }
         }
 
+        /// <summary>
+        /// Loads the stored identity without being told the device id - the id
+        /// comes from the file. This is the correct entry point at startup:
+        /// the id must be stable across launches or every restart would mint a
+        /// new certificate and silently drop every pairing.
+        /// </summary>
+        public OwnIdentity LoadIdentity()
+        {
+            lock (_gate)
+            {
+                if (_own != null)
+                {
+                    return _own;
+                }
+
+                byte[] raw = _store.Read(IdentityFileName);
+                if (raw == null || raw.Length == 0)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    JObject json = Json.Parse(Utf8(raw)) as JObject;
+                    if (json == null)
+                    {
+                        return null;
+                    }
+                    string storedId = json.GetString("deviceId", string.Empty);
+                    byte[] cert = Base64(json.GetString("certificateDer", null));
+                    byte[] key = Base64(json.GetString("privateKeyDer", null));
+                    if (!Sanitize.IsValidDeviceId(storedId) ||
+                        cert == null || cert.Length == 0 ||
+                        key == null || key.Length == 0)
+                    {
+                        return null;
+                    }
+
+                    _own = new OwnIdentity();
+                    _own.DeviceId = storedId;
+                    _own.DeviceName = json.GetString("deviceName", string.Empty);
+                    _own.CertificateDer = cert;
+                    _own.PrivateKeyDer = key;
+                    return _own;
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+        }
+
         public OwnIdentity LoadOrCreateIdentity(string deviceId, string deviceName)
         {
             if (string.IsNullOrEmpty(deviceId))

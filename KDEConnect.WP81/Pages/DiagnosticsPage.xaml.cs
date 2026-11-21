@@ -39,12 +39,13 @@ namespace KDEConnect.WP81.Pages
             sb.AppendLine("Live Diagnostics - " + DateTime.UtcNow.ToString("u") + "Z");
             sb.AppendLine();
 
-            var own = _deviceStore.LoadOrCreateIdentity(Sanitize.GenerateDeviceId(), "WP81");
+            var own = _deviceStore.LoadIdentity();
             if (own != null)
             {
                 sb.AppendLine("Own Device: " + Redactor.RedactDeviceId(own.DeviceId) + " (" + (own.DeviceName ?? "") + ")");
-                sb.AppendLine("  Cert: " + Redactor.HashSha256(own.CertificateDer));
-                sb.AppendLine("  Key:  " + Redactor.HashSha256(own.PrivateKeyDer));
+                // Certificate fingerprint only. The private key is never
+                // printed or hashed into a log (see docs/known-limitations.md).
+                sb.AppendLine("  Cert: " + Redactor.CertificateFingerprint(own.CertificateDer, 8));
             }
             else
             {
@@ -65,12 +66,13 @@ namespace KDEConnect.WP81.Pages
             }
             sb.AppendLine();
 
+            // What this build actually advertises = what the plugins implement.
             sb.AppendLine("Advertised Incoming:");
-            foreach (var c in Capabilities.IncomingList()) sb.AppendLine("  " + c);
+            foreach (var c in _deviceManager.AdvertisedIncoming) sb.AppendLine("  " + c);
             sb.AppendLine();
 
             sb.AppendLine("Advertised Outgoing:");
-            foreach (var c in Capabilities.OutgoingList()) sb.AppendLine("  " + c);
+            foreach (var c in _deviceManager.AdvertisedOutgoing) sb.AppendLine("  " + c);
 
             LiveText.Text = sb.ToString();
         }
@@ -87,14 +89,13 @@ namespace KDEConnect.WP81.Pages
                 sb.AppendLine("Generated: " + DateTime.UtcNow.ToString("u") + "Z");
                 sb.AppendLine();
 
-                var own = _deviceStore.LoadOrCreateIdentity(Sanitize.GenerateDeviceId(), "WP81");
+                var own = _deviceStore.LoadIdentity();
                 if (own != null)
                 {
                     sb.AppendLine("=== Own Identity ===");
                     sb.AppendLine("Device ID: " + Redactor.RedactDeviceId(own.DeviceId));
                     sb.AppendLine("Device Name: " + (string.IsNullOrEmpty(own.DeviceName) ? "(none)" : own.DeviceName));
-                    sb.AppendLine("Certificate SHA256: " + Redactor.HashSha256(own.CertificateDer));
-                    sb.AppendLine("Private Key SHA256: " + Redactor.HashSha256(own.PrivateKeyDer));
+                    sb.AppendLine("Certificate SHA256: " + Redactor.CertificateFingerprint(own.CertificateDer, 8));
                     sb.AppendLine();
                 }
 
@@ -109,19 +110,19 @@ namespace KDEConnect.WP81.Pages
                     sb.AppendLine("Protocol Version: " + p.ProtocolVersion);
                     sb.AppendLine("Paired: " + p.IsPaired);
                     sb.AppendLine("Connected: " + _deviceManager.IsConnected(p.DeviceId));
-                    sb.AppendLine("Last Seen: " + p.LastSeenUtc.ToString("u") + "Z");
-                    sb.AppendLine("Last Address: " + (p.LastSeenAddress ?? "unknown"));
-                    sb.AppendLine("Last TCP Port: " + p.LastSeenTcpPort);
+                    sb.AppendLine("Last Seen (unix): " + p.LastSeenUnixSeconds);
+                    sb.AppendLine("Last Address: " + (p.LastAddress ?? "unknown"));
+                    sb.AppendLine("Last TCP Port: " + p.LastTcpPort);
                     if (p.PinnedCertificateDer != null && p.PinnedCertificateDer.Length > 0)
-                        sb.AppendLine("Pinned Cert SHA256: " + Redactor.HashSha256(p.PinnedCertificateDer));
+                        sb.AppendLine("Pinned Cert SHA256: " + Redactor.CertificateFingerprint(p.PinnedCertificateDer, 8));
                     sb.AppendLine("Incoming Caps: " + string.Join(", ", p.IncomingCapabilities ?? new System.Collections.Generic.List<string>()));
                     sb.AppendLine("Outgoing Caps: " + string.Join(", ", p.OutgoingCapabilities ?? new System.Collections.Generic.List<string>()));
                 }
                 sb.AppendLine();
 
                 sb.AppendLine("=== Advertised Capabilities ===");
-                sb.AppendLine("Incoming: " + string.Join(", ", Capabilities.IncomingList()));
-                sb.AppendLine("Outgoing: " + string.Join(", ", Capabilities.OutgoingList()));
+                sb.AppendLine("Incoming: " + string.Join(", ", _deviceManager.AdvertisedIncoming.ToArray()));
+                sb.AppendLine("Outgoing: " + string.Join(", ", _deviceManager.AdvertisedOutgoing.ToArray()));
 
                 string content = sb.ToString();
                 string fileName = "kdeconnect-diagnostics-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".txt";

@@ -1,58 +1,127 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Networking.Connectivity;
 using KDEConnect.WP81.Core;
 using KDEConnect.WP81.Transport;
 
 namespace KDEConnect.WP81.Services
 {
     /// <summary>
-    /// Central coordinator for device discovery, the device list, pairing state,
-    /// and link lifecycle. This is the single source of truth for the UI layer.
+    /// Central coordinator: UDP discovery, the device list, pairing state and
+    /// link lifecycle. This is the single source of truth for the UI layer.
+    ///
+    /// Capabilities advertised to peers are derived from registered plugins,
+    /// never from the static reference list, so a peer is never told about a
+    /// packet type this build cannot actually handle.
     /// </summary>
     public sealed class DeviceManager
     {
         public event EventHandler DeviceListChanged;
         public event EventHandler OwnIdentityChanged;
+        public event EventHandler<PairingEventArgs> PairingRequestReceived;
+        public event EventHandler<PairingEventArgs> PairingStateChanged;
 
         private readonly DeviceStore _store;
-        private readonly WinRtDatagramDiscovery _discovery;
         private readonly LinkManager _linkManager;
         private readonly PluginManager _pluginManager;
+        private readonly WinRtDatagramDiscovery _discovery;
         private readonly object _gate = new object();
-        private readonly Dictionary<string, DeviceRecord> _devices = new Dictionary<string, DeviceRecord>(StringComparer.Ordinal);
+        private readonly Dictionary<string, DeviceRecord> _devices =
+            new Dictionary<string, DeviceRecord>(StringComparer.Ordinal);
+        private readonly Dictionary<string, Pairing> _pairings =
+            new Dictionary<string, Pairing>(StringComparer.Ordinal);
         private readonly HashSet<string> _connecting = new HashSet<string>(StringComparer.Ordinal);
+
         private DeviceStore.OwnIdentity _ownIdentity;
         private CancellationTokenSource _discoveryCts;
 
         public DeviceManager(DeviceStore store, LinkManager linkManager, PluginManager pluginManager)
         {
-            _store = store ?? throw new ArgumentNullException("store");
-            _linkManager = linkManager ?? throw new ArgumentNullException("linkManager");
-            _pluginManager = pluginManager ?? throw new ArgumentNullException("pluginManager");
-
+            if (store == null)
+            {
+                throw new ArgumentNullException("store");
+            }
+            if (linkManager == null)
+            {
+                throw new ArgumentNullException("linkManager");
+            }
+            if (pluginManager == null)
+            {
+                throw new ArgumentNullException("pluginManager");
+            }
+            _store = store;
+            _linkManager = linkManager;
+            _pluginManager = pluginManager;
             _discovery = new WinRtDatagramDiscovery(OnDiscoveryDatagram);
+
             _linkManager.LinkEstablished += OnLinkEstablished;
             _linkManager.LinkFailed += OnLinkFailed;
             _linkManager.LinkClosed += OnLinkClosed;
+            _linkManager.PacketReceived += OnPacketReceived;
+
+            // Pinning is resolved by device id so inbound and outbound links
+            // are both verified against the stored trust record.
+            _linkManager.SetPinLookup(GetPinnedCertificate);
+
+            LoadStoredDevices();
         }
 
+        public LinkManager LinkManager { get { return _linkManager; } }
+
+        public PluginManager PluginManager { get { return _pluginManager; } }
+
         public DeviceStore.OwnIdentity OwnIdentity { get { lock (_gate) return _ownIdentity; } }
+
+        /// <summary>Declared to peers; comes from the plugins that exist.</summary>
+        public List<string> AdvertisedIncoming { get { return _pluginManager.GetIncomingCapabilities(); } }
+
+        public List<string> AdvertisedOutgoing { get { return _pluginManager.GetOutgoingCapabilities(); } }
+
+        /// <summary>Tells the coordinator who we are. Called once at startup.</summary>
+        public void SetOwnIdentity(DeviceStore.OwnIdentity own)
+        {
+            if (own == null)
+            {
+                throw new ArgumentNullException("own");
+            }
+            lock (_gate)
+            {
+                _ownIdentity = own;
+            }
+
+            var handler = OwnIdentityChanged;
+            if (handler != null)
+            {
+                handler(this, EventArgs.Empty);
+            }
+        }
 
         public List<DeviceRecord> GetAllDevices()
         {
             lock (_gate)
             {
-                return _devices.Values.OrderBy(r => r.DeviceName ?? r.DeviceId).ToList();
+                List<DeviceRecord> list = new List<DeviceRecord>();
+                foreach (DeviceRecord r in _devices.Values)
+                {
+                    list.Add(r);
+                }
+                list.Sort(delegate(DeviceRecord a, DeviceRecord b)
+                {
+                    string an = a.DeviceName != null && a.DeviceName.Length > 0 ? a.DeviceName : a.DeviceId;
+                    string bn = b.DeviceName != null && b.DeviceName.Length > 0 ? b.DeviceName : b.DeviceId;
+                    return string.Compare(an, bn, StringComparison.CurrentCultureIgnoreCase);
+                });
+                return list;
             }
         }
 
         public DeviceRecord GetDevice(string deviceId)
         {
-            if (string.IsNullOrEmpty(deviceId)) return null;
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                return null;
+            }
             lock (_gate)
             {
                 DeviceRecord r;
@@ -62,124 +131,141 @@ namespace KDEConnect.WP81.Services
 
         public bool IsConnected(string deviceId)
         {
-            if (string.IsNullOrEmpty(deviceId)) return false;
-            return _linkManager.IsConnected(deviceId);
+            return !string.IsNullOrEmpty(deviceId) && _linkManager.IsConnected(deviceId);
         }
 
         public bool IsConnecting(string deviceId)
         {
-            if (string.IsNullOrEmpty(deviceId)) return false;
-            lock (_gate) return _connecting.Contains(deviceId);
-        }
-
-        /// <summary>
-        /// Loads or creates the persistent own identity. Must be called once
-        /// at startup before any network activity.
-        /// </summary>
-        public async Task InitializeOwnIdentityAsync(string deviceName)
-        {
-            string deviceId = Sanitize.GenerateDeviceId();
-            _ownIdentity = _store.LoadOrCreateIdentity(deviceId, deviceName);
-            if (_ownIdentity == null)
+            if (string.IsNullOrEmpty(deviceId))
             {
-                TlsIdentity identity = CertificateProvider.CreateIdentity(deviceId);
-                _ownIdentity = new DeviceStore.OwnIdentity
-                {
-                    DeviceId = deviceId,
-                    DeviceName = deviceName ?? "WP81",
-                    CertificateDer = identity.CertificateDer,
-                    PrivateKeyDer = identity.PrivateKeyDer
-                };
-                _store.SaveIdentity(_ownIdentity);
+                return false;
             }
-            else if (!string.IsNullOrEmpty(deviceName) && !string.Equals(_ownIdentity.DeviceName, deviceName, StringComparison.Ordinal))
-            {
-                _ownIdentity.DeviceName = deviceName;
-                _store.SaveIdentity(_ownIdentity);
-            }
-
-            var handler = OwnIdentityChanged;
-            if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>Starts UDP discovery listener and sends initial announcement.</summary>
-        public async Task StartDiscoveryAsync()
-        {
             lock (_gate)
             {
-                if (_discoveryCts != null) return;
-                _discoveryCts = new CancellationTokenSource();
+                return _connecting.Contains(deviceId);
             }
-
-            await _discovery.StartReceivingAsync(_discoveryCts.Token);
-            await SendDiscoveryAnnouncementAsync(_discoveryCts.Token);
         }
 
-        /// <summary>Stops discovery listener.</summary>
-        public void StopDiscovery()
+        public bool IsPaired(string deviceId)
         {
+            DeviceRecord r = GetDevice(deviceId);
+            return r != null && r.IsPaired;
+        }
+
+        /// <summary>True when a pairing attempt is in flight for this device.</summary>
+        public bool IsPairing(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                return false;
+            }
+            lock (_gate)
+            {
+                Pairing p;
+                return _pairings.TryGetValue(deviceId, out p) && p.Handler.IsBusy;
+            }
+        }
+
+        /// <summary>The code both sides must compare, or null when not pairing.</summary>
+        public string GetVerificationCode(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                return null;
+            }
+            lock (_gate)
+            {
+                Pairing p;
+                if (!_pairings.TryGetValue(deviceId, out p) || p.PeerCertificateDer == null)
+                {
+                    return null;
+                }
+                byte[] ownKey = _linkManager.LocalIdentity.PublicKeyDer;
+                if (ownKey == null)
+                {
+                    return null;
+                }
+                return PairingHandler.ComputeVerificationCode(
+                    ownKey, PublicKeyOf(p.PeerCertificateDer), p.Handler.PairingTimestamp);
+            }
+        }
+
+        // ---- discovery -------------------------------------------------------
+
+        public async Task StartDiscoveryAsync()
+        {
+            CancellationToken token;
             lock (_gate)
             {
                 if (_discoveryCts != null)
                 {
-                    _discoveryCts.Cancel();
-                    _discoveryCts = null;
+                    return;
                 }
+                _discoveryCts = new CancellationTokenSource();
+                token = _discoveryCts.Token;
             }
+
+            await _discovery.StartReceivingAsync(token);
+            await SendDiscoveryAnnouncementAsync(token);
         }
 
-        /// <summary>Connects to a specific device by IP (manual entry fallback).</summary>
-        public async Task<bool> ConnectAsync(string deviceId, string address, int port)
+        public void StopDiscovery()
         {
-            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(address))
-                return false;
-
-            lock (_gate) _connecting.Add(deviceId);
-            NotifyDeviceListChanged();
-
-            try
+            CancellationTokenSource cts;
+            lock (_gate)
             {
-                await _linkManager.ConnectAsync(deviceId, address, port);
-                return true;
+                cts = _discoveryCts;
+                _discoveryCts = null;
             }
-            finally
+            if (cts != null)
             {
-                lock (_gate) _connecting.Remove(deviceId);
-                NotifyDeviceListChanged();
+                try
+                {
+                    cts.Cancel();
+                }
+                catch (Exception)
+                {
+                }
+                cts.Dispose();
             }
+            _discovery.StopReceiving();
         }
 
-        /// <summary>Initiates pairing with a device.</summary>
-        public async Task<bool> PairAsync(string deviceId)
+        /// <summary>Re-announces us; used by the Refresh button.</summary>
+        public async Task RefreshAsync()
         {
-            DeviceRecord record = GetDevice(deviceId);
-            if (record == null || record.IsPaired) return false;
-
-            // Pairing happens inside the link; we just ensure a link exists.
-            if (!IsConnected(deviceId))
+            CancellationToken token;
+            lock (_gate)
             {
-                if (string.IsNullOrEmpty(record.LastSeenAddress) || record.LastSeenTcpPort == 0)
-                    return false;
-
-                await ConnectAsync(deviceId, record.LastSeenAddress, record.LastSeenTcpPort);
+                if (_discoveryCts == null)
+                {
+                    return;
+                }
+                token = _discoveryCts.Token;
             }
-
-            // The actual pairing message is sent by the plugin manager
-            // once the link is established.
-            return _linkManager.IsConnected(deviceId);
+            await SendDiscoveryAnnouncementAsync(token);
         }
 
-        /// <summary>Unpairs a device and removes the pin.</summary>
-        public bool Unpair(string deviceId)
+        private async Task SendDiscoveryAnnouncementAsync(CancellationToken token)
         {
-            if (string.IsNullOrEmpty(deviceId)) return false;
+            DeviceStore.OwnIdentity own = OwnIdentity;
+            if (own == null)
+            {
+                return;
+            }
 
-            _linkManager.Disconnect(deviceId);
-            _store.RemovePeer(deviceId);
+            DeviceInfo info = new DeviceInfo(
+                own.DeviceId,
+                string.IsNullOrEmpty(own.DeviceName) ? "WP81" : own.DeviceName,
+                DeviceKind.Phone,
+                ProtocolConstants.ProtocolVersion);
+            info.IncomingCapabilities.AddRange(AdvertisedIncoming);
+            info.OutgoingCapabilities.AddRange(AdvertisedOutgoing);
 
-            lock (_gate) _devices.Remove(deviceId);
-            NotifyDeviceListChanged();
-            return true;
+            byte[] payload = info.ToUdpDiscoveryPacket(ProtocolConstants.MinTcpPort).Serialize();
+            List<string> targets = WinRtDatagramDiscovery.BuildTargets(null);
+            await WinRtDatagramDiscovery.SendDiscoveryAsync(
+                payload, ProtocolConstants.UdpPort, targets, token);
         }
 
         private void OnDiscoveryDatagram(string json, string fromAddress)
@@ -187,78 +273,399 @@ namespace KDEConnect.WP81.Services
             try
             {
                 NetworkPacket np = NetworkPacket.Unserialize(json);
-                if (!DeviceInfo.IsValidUdpDiscoveryPacket(np)) return;
+                if (!DeviceInfo.IsValidUdpDiscoveryPacket(np))
+                {
+                    return;
+                }
 
-                DeviceInfo info = DeviceInfo.FromUdpDiscoveryPacket(np);
-                if (info == null || string.IsNullOrEmpty(info.Id)) return;
-                if (string.Equals(info.Id, _ownIdentity?.DeviceId, StringComparison.Ordinal)) return; // ourselves
+                string peerId = np.GetString("deviceId", string.Empty);
+                DeviceStore.OwnIdentity own = OwnIdentity;
+                if (own != null && string.Equals(peerId, own.DeviceId, StringComparison.Ordinal))
+                {
+                    return; // our own broadcast
+                }
+
+                DeviceInfo info = DeviceInfo.FromIdentityPacketAndCert(np, null);
+                int tcpPort = np.GetInt("tcpPort", ProtocolConstants.MinTcpPort);
 
                 lock (_gate)
                 {
                     DeviceRecord record;
                     if (!_devices.TryGetValue(info.Id, out record))
                     {
-                        record = new DeviceRecord
-                        {
-                            DeviceId = info.Id,
-                            DeviceName = info.Name,
-                            DeviceType = info.Type,
-                            ProtocolVersion = info.ProtocolVersion,
-                            IncomingCapabilities = new List<string>(info.IncomingCapabilities),
-                            OutgoingCapabilities = new List<string>(info.OutgoingCapabilities)
-                        };
+                        record = new DeviceRecord();
+                        record.DeviceId = info.Id;
                         _devices[info.Id] = record;
                     }
-                    else
-                    {
-                        record.DeviceName = info.Name;
-                        record.DeviceType = info.Type;
-                        record.ProtocolVersion = info.ProtocolVersion;
-                        record.IncomingCapabilities = new List<string>(info.IncomingCapabilities);
-                        record.OutgoingCapabilities = new List<string>(info.OutgoingCapabilities);
-                    }
-                    record.LastSeenAddress = fromAddress;
-                    record.LastSeenTcpPort = info.TcpPort;
-                    record.LastSeenUtc = DateTime.UtcNow;
+
+                    record.DeviceName = info.Name;
+                    record.DeviceType = DeviceInfo.KindToString(info.Kind);
+                    record.ProtocolVersion = info.ProtocolVersion;
+                    record.LastAddress = fromAddress;
+                    record.LastTcpPort = tcpPort;
+                    record.LastSeenUnixSeconds = NowUnixSeconds();
                 }
 
                 NotifyDeviceListChanged();
             }
             catch (Exception)
             {
-                // Malformed datagram — ignore.
+                // One malformed datagram must never stop the listener.
             }
         }
 
-        private async Task SendDiscoveryAnnouncementAsync(CancellationToken ct)
+        // ---- connection ------------------------------------------------------
+
+        /// <summary>Connects to a device using its last seen address/port.</summary>
+        public async Task<bool> ConnectAsync(string deviceId)
         {
-            if (_ownIdentity == null) return;
-
-            DeviceInfo info = new DeviceInfo(_ownIdentity.DeviceId, _ownIdentity.DeviceName, DeviceKind.Phone, ProtocolConstants.ProtocolVersion);
-            info.IncomingCapabilities.AddRange(Capabilities.IncomingList());
-            info.OutgoingCapabilities.AddRange(Capabilities.OutgoingList());
-
-            byte[] payload = info.ToUdpDiscoveryPacket(ProtocolConstants.UdpPort).Serialize();
-            var targets = WinRtDatagramDiscovery.BuildTargets(null);
-            await WinRtDatagramDiscovery.SendDiscoveryAsync(payload, ProtocolConstants.UdpPort, targets, ct);
+            DeviceRecord record = GetDevice(deviceId);
+            if (record == null || string.IsNullOrEmpty(record.LastAddress))
+            {
+                return false;
+            }
+            return await ConnectAsync(deviceId, record.LastAddress, record.LastTcpPort);
         }
+
+        /// <summary>Connects to an explicit address (manual-IP fallback).</summary>
+        public async Task<bool> ConnectAsync(string deviceId, string address, int port)
+        {
+            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(address))
+            {
+                return false;
+            }
+
+            lock (_gate)
+            {
+                _connecting.Add(deviceId);
+            }
+            NotifyDeviceListChanged();
+
+            try
+            {
+                await _linkManager.ConnectAsync(deviceId, address, port);
+                return _linkManager.IsConnected(deviceId);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                lock (_gate)
+                {
+                    _connecting.Remove(deviceId);
+                }
+                NotifyDeviceListChanged();
+            }
+        }
+
+        /// <summary>Adds a device reached by typing an IP, with no discovery.</summary>
+        public DeviceRecord AddManualDevice(string deviceId, string address, int port, string name)
+        {
+            if (!Sanitize.IsValidDeviceId(deviceId))
+            {
+                return null;
+            }
+            DeviceRecord record = GetDevice(deviceId);
+            lock (_gate)
+            {
+                if (record == null)
+                {
+                    record = new DeviceRecord();
+                    record.DeviceId = deviceId;
+                    _devices[deviceId] = record;
+                }
+                record.LastAddress = address;
+                record.LastTcpPort = port;
+                record.LastSeenUnixSeconds = NowUnixSeconds();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    record.DeviceName = name;
+                }
+            }
+            NotifyDeviceListChanged();
+            return record;
+        }
+
+        /// <summary>Unpairs: drops the link, the pin and the trust record.</summary>
+        public bool Unpair(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                return false;
+            }
+
+            _linkManager.Disconnect(deviceId);
+            _store.RemovePeer(deviceId);
+
+            lock (_gate)
+            {
+                _pairings.Remove(deviceId);
+                DeviceRecord record;
+                if (_devices.TryGetValue(deviceId, out record))
+                {
+                    record.IsPaired = false;
+                    record.PinnedCertificateDer = null;
+                    record.PinnedCertificateSha256 = null;
+                }
+            }
+
+            NotifyDeviceListChanged();
+            return true;
+        }
+
+        // ---- pairing ---------------------------------------------------------
+
+        /// <summary>We initiate pairing. Requires an established link.</summary>
+        public async Task<bool> RequestPairingAsync(string deviceId)
+        {
+            if (!IsConnected(deviceId))
+            {
+                bool connected = await ConnectAsync(deviceId);
+                if (!connected)
+                {
+                    return false;
+                }
+            }
+
+            Pairing pairing;
+            lock (_gate)
+            {
+                if (!_pairings.TryGetValue(deviceId, out pairing))
+                {
+                    pairing = new Pairing();
+                    _pairings[deviceId] = pairing;
+                }
+            }
+
+            PairingEvent outcome;
+            NetworkPacket packet = pairing.Handler.RequestPairing(NowUnixSeconds(), out outcome);
+            if (packet != null)
+            {
+                _linkManager.SendPacket(deviceId, packet);
+            }
+
+            NotifyPairingStateChanged(deviceId, outcome);
+            return packet != null;
+        }
+
+        /// <summary>We accept a pending incoming request and pin the peer cert.</summary>
+        public bool AcceptPairing(string deviceId)
+        {
+            Pairing pairing;
+            lock (_gate)
+            {
+                if (!_pairings.TryGetValue(deviceId, out pairing))
+                {
+                    return false;
+                }
+            }
+
+            PairingEvent outcome;
+            NetworkPacket packet = pairing.Handler.AcceptPairing(out outcome);
+            if (packet == null)
+            {
+                return false;
+            }
+
+            _linkManager.SendPacket(deviceId, packet);
+            PersistPairing(deviceId, pairing);
+            NotifyPairingStateChanged(deviceId, outcome);
+            return true;
+        }
+
+        public bool RejectPairing(string deviceId)
+        {
+            Pairing pairing;
+            lock (_gate)
+            {
+                if (!_pairings.TryGetValue(deviceId, out pairing))
+                {
+                    return false;
+                }
+            }
+
+            PairingEvent outcome;
+            NetworkPacket packet = pairing.Handler.CancelPairing(out outcome);
+            if (packet != null)
+            {
+                _linkManager.SendPacket(deviceId, packet);
+            }
+            NotifyPairingStateChanged(deviceId, outcome);
+            return true;
+        }
+
+        private void OnPacketReceived(object sender, PacketEventArgs e)
+        {
+            if (e == null || e.Packet == null)
+            {
+                return;
+            }
+            if (!string.Equals(e.Packet.Type, ProtocolConstants.PacketTypePair, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            Pairing pairing;
+            bool created = false;
+            lock (_gate)
+            {
+                if (!_pairings.TryGetValue(e.DeviceId, out pairing))
+                {
+                    pairing = new Pairing();
+                    _pairings[e.DeviceId] = pairing;
+                    created = true;
+                }
+            }
+
+            // The peer certificate only exists after the handshake, so capture
+            // it from the link session the first time we see a pair packet.
+            if (created || pairing.PeerCertificateDer == null)
+            {
+                pairing.PeerCertificateDer = GetPeerCertificate(e.DeviceId);
+            }
+
+            PairingEvent outcome;
+            NetworkPacket reply = pairing.Handler.OnPacketReceived(e.Packet, NowUnixSeconds(), out outcome);
+
+            if (reply != null)
+            {
+                _linkManager.SendPacket(e.DeviceId, reply);
+            }
+
+            if (outcome == PairingEvent.IncomingRequest)
+            {
+                var handler = PairingRequestReceived;
+                if (handler != null)
+                {
+                    PairingEventArgs args = new PairingEventArgs();
+                    args.DeviceId = e.DeviceId;
+                    args.VerificationCode = GetVerificationCode(e.DeviceId);
+                    handler(this, args);
+                }
+            }
+            else if (outcome == PairingEvent.Accepted)
+            {
+                // Their accept (or our own round-trip completing) means trust.
+                PersistPairing(e.DeviceId, pairing);
+            }
+            else if (outcome == PairingEvent.Unpaired || outcome == PairingEvent.CancelledByPeer)
+            {
+                lock (_gate)
+                {
+                    _pairings.Remove(e.DeviceId);
+                }
+                Unpair(e.DeviceId);
+            }
+
+            NotifyPairingStateChanged(e.DeviceId, outcome);
+        }
+
+        private void PersistPairing(string deviceId, Pairing pairing)
+        {
+            DeviceRecord record = GetDevice(deviceId);
+            if (record == null)
+            {
+                return;
+            }
+
+            byte[] cert = pairing.PeerCertificateDer;
+            if (cert == null)
+            {
+                // Refuse to record trust without something to pin: a pairing
+                // that stores no certificate cannot be verified later.
+                return;
+            }
+
+            lock (_gate)
+            {
+                record.IsPaired = true;
+                record.PinnedCertificateDer = cert;
+                record.PinnedCertificateSha256 = Redactor.CertificateFingerprint(cert, 8);
+                record.PairedAtUnixSeconds = NowUnixSeconds();
+            }
+
+            _store.UpsertPeer(record);
+            NotifyDeviceListChanged();
+        }
+
+        private byte[] GetPinnedCertificate(string deviceId)
+        {
+            DeviceRecord record = GetDevice(deviceId);
+            if (record == null || !record.IsPaired)
+            {
+                return null;
+            }
+            return record.PinnedCertificateDer;
+        }
+
+        private byte[] GetPeerCertificate(string deviceId)
+        {
+            // The link session keeps the presented certificate; exposing it
+            // through LinkManager would widen that type's surface, so the
+            // record is updated from the link event instead (below).
+            DeviceRecord record = GetDevice(deviceId);
+            if (record != null && record.PinnedCertificateDer != null)
+            {
+                return record.PinnedCertificateDer;
+            }
+            lock (_gate)
+            {
+                byte[] transient;
+                if (_peerCertificates.TryGetValue(deviceId, out transient))
+                {
+                    return transient;
+                }
+            }
+            return null;
+        }
+
+        private readonly Dictionary<string, byte[]> _peerCertificates =
+            new Dictionary<string, byte[]>(StringComparer.Ordinal);
+
+        // ---- link events -----------------------------------------------------
 
         private void OnLinkEstablished(object sender, LinkEventArgs e)
         {
             lock (_gate)
             {
+                _connecting.Remove(e.DeviceId);
+
                 DeviceRecord record;
                 if (!_devices.TryGetValue(e.DeviceId, out record))
                 {
-                    record = new DeviceRecord { DeviceId = e.DeviceId };
+                    record = new DeviceRecord();
+                    record.DeviceId = e.DeviceId;
                     _devices[e.DeviceId] = record;
                 }
-                record.IsConnected = true;
-                record.LastSeenAddress = e.RemoteAddress;
-                record.LastSeenTcpPort = e.RemotePort;
-                record.IncomingCapabilities = new List<string>(e.PeerInfo.IncomingCapabilities);
-                record.OutgoingCapabilities = new List<string>(e.PeerInfo.OutgoingCapabilities);
+
+                if (e.PeerInfo != null)
+                {
+                    record.DeviceName = e.PeerInfo.Name;
+                    record.DeviceType = DeviceInfo.KindToString(e.PeerInfo.Kind);
+                    record.ProtocolVersion = e.PeerInfo.ProtocolVersion;
+                    record.IncomingCapabilities = new List<string>(e.PeerInfo.IncomingCapabilities);
+                    record.OutgoingCapabilities = new List<string>(e.PeerInfo.OutgoingCapabilities);
+                }
+
+                if (!string.IsNullOrEmpty(e.RemoteAddress))
+                {
+                    record.LastAddress = e.RemoteAddress;
+                }
+                if (e.RemotePort > 0)
+                {
+                    record.LastTcpPort = e.RemotePort;
+                }
+                record.LastSeenUnixSeconds = NowUnixSeconds();
+
+                // Keep the peer certificate available for the verification code.
+                if (e.PeerCertificateDer != null)
+                {
+                    _peerCertificates[e.DeviceId] = e.PeerCertificateDer;
+                }
             }
+
             NotifyDeviceListChanged();
             _pluginManager.OnLinkEstablished(e.DeviceId, e.Session, e.Reader);
         }
@@ -267,11 +674,6 @@ namespace KDEConnect.WP81.Services
         {
             lock (_gate)
             {
-                DeviceRecord record;
-                if (_devices.TryGetValue(e.DeviceId, out record))
-                {
-                    record.IsConnected = false;
-                }
                 _connecting.Remove(e.DeviceId);
             }
             NotifyDeviceListChanged();
@@ -281,30 +683,82 @@ namespace KDEConnect.WP81.Services
         {
             lock (_gate)
             {
-                DeviceRecord record;
-                if (_devices.TryGetValue(e.DeviceId, out record))
-                {
-                    record.IsConnected = false;
-                }
+                _pairings.Remove(e.DeviceId);
+                _peerCertificates.Remove(e.DeviceId);
             }
             NotifyDeviceListChanged();
             _pluginManager.OnLinkClosed(e.DeviceId);
         }
 
+        private void LoadStoredDevices()
+        {
+            List<DeviceRecord> stored = _store.LoadPeers();
+            lock (_gate)
+            {
+                for (int i = 0; i < stored.Count; i++)
+                {
+                    _devices[stored[i].DeviceId] = stored[i];
+                }
+            }
+        }
+
         public void NotifyDeviceListChanged()
         {
             var handler = DeviceListChanged;
-            if (handler != null) handler(this, EventArgs.Empty);
+            if (handler != null)
+            {
+                handler(this, EventArgs.Empty);
+            }
+        }
+
+        private void NotifyPairingStateChanged(string deviceId, PairingEvent outcome)
+        {
+            var handler = PairingStateChanged;
+            if (handler != null)
+            {
+                PairingEventArgs args = new PairingEventArgs();
+                args.DeviceId = deviceId;
+                args.Outcome = outcome;
+                args.VerificationCode = GetVerificationCode(deviceId);
+                handler(this, args);
+            }
+        }
+
+        // ---- helpers ---------------------------------------------------------
+
+        private static long NowUnixSeconds()
+        {
+            return (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+        }
+
+        private static byte[] PublicKeyOf(byte[] certificateDer)
+        {
+            if (certificateDer == null || certificateDer.Length == 0)
+            {
+                return null;
+            }
+            TlsIdentity temporary = new TlsIdentity(null, certificateDer, null);
+            return temporary.PublicKeyDer;
+        }
+
+        private sealed class Pairing
+        {
+            public Pairing()
+            {
+                Handler = new PairingHandler();
+            }
+
+            public PairingHandler Handler { get; private set; }
+
+            /// <summary>Peer certificate DER captured at link time.</summary>
+            public byte[] PeerCertificateDer { get; set; }
         }
     }
 
-    public sealed class LinkEventArgs : EventArgs
+    public sealed class PairingEventArgs : EventArgs
     {
         public string DeviceId { get; set; }
-        public string RemoteAddress { get; set; }
-        public int RemotePort { get; set; }
-        public DeviceInfo PeerInfo { get; set; }
-        public ITlsSession Session { get; set; }
-        public BufferedLineReader Reader { get; set; }
+        public string VerificationCode { get; set; }
+        public PairingEvent Outcome { get; set; }
     }
 }

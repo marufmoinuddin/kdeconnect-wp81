@@ -84,6 +84,34 @@ namespace KDEConnect.WP81.Transport
             _receiver = socket;
         }
 
+        /// <summary>
+        /// Releases the bound socket without poisoning the instance, so
+        /// discovery can be restarted after the app resumes from suspend.
+        /// </summary>
+        public void StopReceiving()
+        {
+            DatagramSocket socket = _receiver;
+            _receiver = null;
+            if (socket == null)
+            {
+                return;
+            }
+            try
+            {
+                socket.MessageReceived -= OnMessageReceived;
+            }
+            catch (Exception)
+            {
+            }
+            try
+            {
+                socket.Dispose();
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         private void OnMessageReceived(DatagramSocket sender, DatagramSocketMessageReceivedEventArgs args)
         {
             try

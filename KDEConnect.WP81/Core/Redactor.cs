@@ -111,6 +111,24 @@ namespace KDEConnect.WP81.Core
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Short, log-safe form of a device id. The id is not a secret, but
+        /// diagnostics should not spray full identifiers around; the first six
+        /// characters are enough to correlate two log lines.
+        /// </summary>
+        public static string RedactDeviceId(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                return "(none)";
+            }
+            if (deviceId.Length <= 6)
+            {
+                return deviceId;
+            }
+            return deviceId.Substring(0, 6) + "...";
+        }
+
         /// <summary>Short fingerprint of a certificate for the UI/log (SHA-256, hex, colon-separated).</summary>
         public static string CertificateFingerprint(byte[] der, int groups)
         {

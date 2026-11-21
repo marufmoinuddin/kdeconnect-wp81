@@ -198,14 +198,27 @@ namespace KDEConnect.WP81.Transport
                 return LinkEstablishResult.Failed("invalid secure identity packet");
             }
 
+            // Resolve the pin now that the peer id is known. An inbound link
+            // learns the peer id from the plaintext packet, so the caller could
+            // not have supplied the pin when the policy was built.
+            byte[] pinned = policy.PinnedCertificateDer;
+            if (pinned == null && policy.PinLookup != null)
+            {
+                string peerId = secure.GetString("deviceId", string.Empty);
+                if (peerId.Length > 0)
+                {
+                    pinned = policy.PinLookup(peerId);
+                }
+            }
+
             HandshakeContext context = new HandshakeContext();
             context.PlaintextIdentity = plaintext;
             context.SecureIdentity = secure;
             context.PeerCertificateCommonName = session.Result.PeerCertificateCommonName;
             context.PeerCertificateValidInTime = session.Result.PeerCertificateValidInTime;
             context.PresentedCertificateDer = session.Result.PeerCertificateDer;
-            context.PinnedCertificateDer = policy.PinnedCertificateDer;
-            context.IsTrustedPeer = policy.PinnedCertificateDer != null;
+            context.PinnedCertificateDer = pinned;
+            context.IsTrustedPeer = pinned != null;
 
             if (context.Evaluate() != HandshakeDecision.Accept)
             {

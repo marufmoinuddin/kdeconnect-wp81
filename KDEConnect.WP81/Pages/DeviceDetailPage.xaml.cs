@@ -58,8 +58,10 @@ namespace KDEConnect.WP81.Pages
             bool isPaired = _record.IsPaired;
 
             StatusText.Text = isConnecting ? "Connecting..." : (isConnected ? "Connected" : (isPaired ? "Paired (disconnected)" : "Discovered"));
-            AddressText.Text = _record.LastSeenAddress ?? "unknown";
-            PortText.Text = _record.LastSeenTcpPort > 0 ? _record.LastSeenTcpPort.ToString() : "unknown";
+            AddressText.Text = _record.LastAddress != null && _record.LastAddress.Length > 0
+                ? _record.LastAddress : "unknown";
+            PortText.Text = _record.LastTcpPort > 0
+                ? _record.LastTcpPort.ToString() : "unknown";
             ConnectionStatusText.Text = isConnected ? "Connected" : (isConnecting ? "Connecting..." : "Disconnected");
             PairedText.Text = isPaired ? "Yes" : "No";
             PinnedText.Text = _record.PinnedCertificateDer != null && _record.PinnedCertificateDer.Length > 0 ? "Yes" : "No";
@@ -102,15 +104,15 @@ namespace KDEConnect.WP81.Pages
             PairButton.IsEnabled = false;
             try
             {
-                bool success = await _deviceManager.PairAsync(_deviceId);
+                bool success = await _deviceManager.RequestPairingAsync(_deviceId);
                 if (success)
                 {
-                    // Pairing requires showing verification code dialog
                     await ShowPairingDialogAsync();
                 }
                 else
                 {
-                    await new MessageDialog("Failed to initiate pairing. Ensure device is reachable.").ShowAsync();
+                    await new MessageDialog(
+                        "Could not start pairing. Ensure the device is reachable on the network.").ShowAsync();
                 }
             }
             finally
@@ -122,9 +124,11 @@ namespace KDEConnect.WP81.Pages
 
         private async Task ShowPairingDialogAsync()
         {
-            // The pairing dialog would show the verification code
-            // For now just show a simple message
-            await new MessageDialog("Pairing initiated. Check the peer device for verification code.", "Pairing").ShowAsync();
+            string code = _deviceManager.GetVerificationCode(_deviceId);
+            PairingDialog dialog = new PairingDialog();
+            dialog.Initialize(_deviceManager, _deviceId, code);
+            await dialog.ShowAsync();
+            await RefreshAsync();
         }
 
         private async void OnUnpairClick(object sender, RoutedEventArgs e)
@@ -154,8 +158,9 @@ namespace KDEConnect.WP81.Pages
 
             try
             {
-                var plugin = _pluginManager.GetPlugin("ping");
-                if (plugin is PingPlugin pingPlugin)
+                IPlugin plugin = _pluginManager.GetPlugin("ping");
+                PingPlugin pingPlugin = plugin as PingPlugin;
+                if (pingPlugin != null)
                 {
                     // Use reflection or a direct method - for now just send via link manager
                     NetworkPacket ping = new NetworkPacket(ProtocolConstants.PacketTypePing);
@@ -163,7 +168,9 @@ namespace KDEConnect.WP81.Pages
                     ping.SetString("message", "ping from WP81");
 
                     bool sent = _deviceManager.LinkManager.SendPacket(_deviceId, ping);
-                    PingResultText.Text = sent ? "Ping sent (waiting for reply...)" : "Failed to send ping";
+                    PingResultText.Text = sent
+                        ? "Ping sent - the peer should show it."
+                        : "Failed to send ping";
                 }
                 else
                 {

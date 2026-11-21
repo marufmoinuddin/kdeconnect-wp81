@@ -58,7 +58,10 @@ namespace KdeConnect.HostTests
             TlsTests();
             LineReaderTests();
             LinkEstablisherTests();
+            PinLookupTests();
             DeviceStoreTests();
+            IdentityLifecycleTests();
+            RedactionTests();
         }
 
         // ------------------------------------------------------------------ //
@@ -1434,6 +1437,169 @@ namespace KdeConnect.HostTests
             Check("clear removes identity", reopened.LoadOrCreateIdentity(PhoneDeviceId, "WP81") == null,
                 "identity survived");
             CheckEqual("clear removes peers", 0, reopened.LoadPeers().Count);
+        }
+
+
+
+        // ------------------------------------------------------------------ //
+        //  Startup identity lifecycle and log-safety helpers.
+        // ------------------------------------------------------------------ //
+
+        private static void IdentityLifecycleTests()
+        {
+            Section("Identity lifecycle (startup correctness)");
+
+            MemoryBlobStore blobs = new MemoryBlobStore();
+            DeviceStore store = new DeviceStore(blobs);
+
+            // Nothing stored: startup must create, not resurrect.
+            Check("fresh install has no identity", store.LoadIdentity() == null, "found one");
+
+            string id = Sanitize.GenerateDeviceId();
+            Check("generated device id is valid", Sanitize.IsValidDeviceId(id), id);
+            CheckEqual("generated device id length", 32, id.Length);
+
+            TlsIdentity minted = CertificateProvider.CreateIdentity(id);
+            DeviceStore.OwnIdentity own = new DeviceStore.OwnIdentity();
+            own.DeviceId = id;
+            own.DeviceName = "WP81";
+            own.CertificateDer = minted.CertificateDer;
+            own.PrivateKeyDer = minted.PrivateKeyDer;
+            store.SaveIdentity(own);
+
+            // THE regression this guards: a restart must reuse the same id.
+            DeviceStore restarted = new DeviceStore(blobs);
+            DeviceStore.OwnIdentity reloaded = restarted.LoadIdentity();
+            Check("identity loads on restart", reloaded != null, "null");
+            CheckEqual("device id stable across restart", id, reloaded.DeviceId);
+            Check("certificate stable across restart",
+                BytesEqual(minted.CertificateDer, reloaded.CertificateDer), "different");
+            CheckEqual("name restored", "WP81", reloaded.DeviceName);
+
+            // A second call must be stable too (cache path).
+            CheckEqual("id stable on second load", id, restarted.LoadIdentity().DeviceId);
+
+            // Corrupt / partial files must not resurrect a broken identity.
+            MemoryBlobStore bad = new MemoryBlobStore();
+            bad.Write(DeviceStore.IdentityFileName,
+                System.Text.Encoding.UTF8.GetBytes("{\"deviceId\":\"short\",\"certificateDer\":\"AAAA\"}"));
+            Check("invalid stored identity rejected", new DeviceStore(bad).LoadIdentity() == null,
+                "accepted a broken identity");
+
+            // Generated ids must all satisfy the wire rule (32-38 chars).
+            bool allValid = true;
+            for (int i = 0; i < 200; i++)
+            {
+                if (!Sanitize.IsValidDeviceId(Sanitize.GenerateDeviceId()))
+                {
+                    allValid = false;
+                }
+            }
+            Check("200 generated ids are all wire-valid", allValid, "some were invalid");
+        }
+
+        private static void RedactionTests()
+        {
+            Section("Redactor (log safety)");
+
+            CheckEqual("null device id redacts cleanly", "(none)", Redactor.RedactDeviceId(null));
+            CheckEqual("empty device id redacts cleanly", "(none)", Redactor.RedactDeviceId(""));
+            CheckEqual("short id passes through", "abc", Redactor.RedactDeviceId("abc"));
+            CheckEqual("long id is truncated", "abcdef...", Redactor.RedactDeviceId("abcdef0123456789"));
+
+            byte[] cert = CertificateProvider.CreateIdentity(PhoneDeviceId).CertificateDer;
+            string fp = Redactor.CertificateFingerprint(cert, 8);
+            Check("certificate fingerprint is non-empty", !string.IsNullOrEmpty(fp), "empty");
+            Check("certificate fingerprint differs per cert",
+                fp != Redactor.CertificateFingerprint(desktopCertForTests(), 8), "identical");
+
+            // Packet descriptions must never echo a private-looking body verbatim.
+            NetworkPacket np = new NetworkPacket("kdeconnect.clipboard");
+            np.SetString("password", "hunter2");
+            string described = Redactor.DescribePacket(np);
+            Check("sensitive packet body is not echoed",
+                described.IndexOf("hunter2", StringComparison.Ordinal) < 0, described);
+        }
+
+        private static byte[] desktopCertForTests()
+        {
+            return CertificateProvider.CreateIdentity(DesktopDeviceId).CertificateDer;
+        }
+
+
+
+        // ------------------------------------------------------------------ //
+        //  Pin lookup: inbound links must be verified against the stored pin.
+        // ------------------------------------------------------------------ //
+
+        private static void PinLookupTests()
+        {
+            Section("Pinning via lookup (inbound)");
+
+            DeviceInfo phoneInfo = BuildInfo(PhoneDeviceId, "WP81");
+            DeviceInfo desktopInfo = BuildInfo(DesktopDeviceId, "G14");
+            TlsIdentity phoneIdentity = CertificateProvider.CreateIdentity(PhoneDeviceId);
+            TlsIdentity desktopIdentity = CertificateProvider.CreateIdentity(DesktopDeviceId);
+            NetworkPacket discovery = desktopInfo.ToUdpDiscoveryPacket(1716);
+
+            // The acceptor learns the peer id only after the plaintext packet,
+            // so a real pairing pin has to be resolved by callback.
+            TlsPeerPolicy dialerPolicy = new TlsPeerPolicy();
+            dialerPolicy.ExpectedDeviceId = DesktopDeviceId;
+
+            TlsPeerPolicy pairedAcceptor = new TlsPeerPolicy();
+            pairedAcceptor.PinLookup = delegate(string peerId)
+            {
+                return string.Equals(peerId, PhoneDeviceId, StringComparison.Ordinal)
+                    ? phoneIdentity.CertificateDer
+                    : null;
+            };
+
+            LinkOutcome good = RunLink(phoneInfo, desktopInfo, phoneIdentity, desktopIdentity,
+                discovery, dialerPolicy, pairedAcceptor);
+
+            Check("pinned inbound link establishes",
+                good.Acceptor != null && good.Acceptor.Success,
+                good.Acceptor == null ? "null" : good.Acceptor.Failure);
+            Check("inbound peer is marked trusted when the pin matches",
+                good.Acceptor != null && good.Acceptor.Success &&
+                good.Acceptor.Context != null && good.Acceptor.Context.IsTrustedPeer,
+                "not trusted");
+            if (good.Acceptor != null && good.Acceptor.Session != null) good.Acceptor.Session.Close();
+            if (good.Dialer != null && good.Dialer.Session != null) good.Dialer.Session.Close();
+
+            // A pin that resolves to the WRONG certificate must be refused:
+            // this is the impostor case the whole pinning scheme exists for.
+            TlsPeerPolicy wrongPinAcceptor = new TlsPeerPolicy();
+            wrongPinAcceptor.PinLookup = delegate(string peerId)
+            {
+                return desktopIdentity.CertificateDer; // wrong key on purpose
+            };
+
+            LinkOutcome bad = RunLink(phoneInfo, desktopInfo, phoneIdentity, desktopIdentity,
+                discovery, dialerPolicy, wrongPinAcceptor);
+
+            Check("inbound link refused when the resolved pin differs",
+                bad.Acceptor != null && !bad.Acceptor.Success &&
+                bad.Acceptor.Failure != null &&
+                bad.Acceptor.Failure.Contains("certificate changed"),
+                bad.Acceptor == null ? "null" :
+                    (bad.Acceptor.Success ? "accepted an impostor" : bad.Acceptor.Failure));
+
+            // An unpaired peer resolves to null and must still be admitted
+            // (trust on first use, pending the operator's verification code).
+            TlsPeerPolicy unpairedAcceptor = new TlsPeerPolicy();
+            unpairedAcceptor.PinLookup = delegate(string peerId) { return null; };
+
+            LinkOutcome tofu = RunLink(phoneInfo, desktopInfo, phoneIdentity, desktopIdentity,
+                discovery, dialerPolicy, unpairedAcceptor);
+
+            Check("unpaired inbound peer admitted as untrusted",
+                tofu.Acceptor != null && tofu.Acceptor.Success &&
+                tofu.Acceptor.Context != null && !tofu.Acceptor.Context.IsTrustedPeer,
+                tofu.Acceptor == null ? "null" : tofu.Acceptor.Failure);
+            if (tofu.Acceptor != null && tofu.Acceptor.Session != null) tofu.Acceptor.Session.Close();
+            if (tofu.Dialer != null && tofu.Dialer.Session != null) tofu.Dialer.Session.Close();
         }
 
     }

@@ -87,6 +87,17 @@ namespace KDEConnect.WP81.Transport
     /// </summary>
     public sealed class TlsIdentity
     {
+        public TlsIdentity()
+        {
+        }
+
+        public TlsIdentity(string deviceId, byte[] certificateDer, byte[] privateKeyDer)
+        {
+            DeviceId = deviceId;
+            CertificateDer = certificateDer;
+            PrivateKeyDer = privateKeyDer;
+        }
+
         public byte[] CertificateDer { get; set; }
         public byte[] PrivateKeyDer { get; set; }
         public string DeviceId { get; set; }
@@ -136,6 +147,16 @@ namespace KDEConnect.WP81.Transport
         /// is not paired yet (trust on first use, pending operator approval).
         /// </summary>
         public byte[] PinnedCertificateDer { get; set; }
+
+        /// <summary>
+        /// Optional resolver used when <see cref="PinnedCertificateDer"/> is
+        /// null: given the peer device id, return the stored pin or null. This
+        /// exists because an inbound connection only reveals the peer id after
+        /// the plaintext handshake, so the pin cannot be looked up in advance.
+        /// Resolving it here means inbound links are pinned exactly like
+        /// outbound ones instead of silently falling back to trust-on-first-use.
+        /// </summary>
+        public Func<string, byte[]> PinLookup { get; set; }
 
         /// <summary>
         /// True when a peer certificate must be presented at all. The reference

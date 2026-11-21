@@ -6,8 +6,9 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Animation;
 using KDEConnect.WP81.Core;
-using KDEConnect.WP81.Services;
 using KDEConnect.WP81.Plugins;
+using KDEConnect.WP81.Services;
+using KDEConnect.WP81.Transport;
 
 namespace KDEConnect.WP81
 {
@@ -15,46 +16,22 @@ namespace KDEConnect.WP81
     {
         private TransitionCollection _transitions;
 
+        public DeviceStore DeviceStore { get; private set; }
         public DeviceManager DeviceManager { get; private set; }
         public LinkManager LinkManager { get; private set; }
         public PluginManager PluginManager { get; private set; }
-        public DeviceStore DeviceStore { get; private set; }
+
+        /// <summary>Name we present to peers; editable in Settings.</summary>
+        public const string DefaultDeviceName = "WP81";
+
+        /// <summary>Set when startup failed, so the UI can explain why.</summary>
+        public string StartupError { get; private set; }
 
         public App()
         {
             this.InitializeComponent();
             this.Suspending += OnSuspending;
             this.Resuming += OnResuming;
-
-            InitializeServices();
-        }
-
-        private void InitializeServices()
-        {
-            var store = new StorageBlobStore();
-            DeviceStore = new DeviceStore(store);
-
-            TlsIdentity identity = null;
-            var ownIdentity = DeviceStore.LoadOrCreateIdentity(Sanitize.GenerateDeviceId(), "WP81");
-            if (ownIdentity != null)
-            {
-                identity = new TlsIdentity(ownIdentity.CertificateDer, ownIdentity.PrivateKeyDer);
-            }
-
-            var localInfo = new DeviceInfo(
-                ownIdentity?.DeviceId ?? Sanitize.GenerateDeviceId(),
-                ownIdentity?.DeviceName ?? "WP81",
-                DeviceKind.Phone,
-                ProtocolConstants.ProtocolVersion);
-            localInfo.IncomingCapabilities.AddRange(Capabilities.IncomingList());
-            localInfo.OutgoingCapabilities.AddRange(Capabilities.OutgoingList());
-
-            LinkManager = new LinkManager(identity, localInfo);
-            PluginManager = new PluginManager(LinkManager);
-            PluginManager.RegisterPlugin(new PingPlugin());
-
-            DeviceManager = new DeviceManager(DeviceStore, LinkManager, PluginManager);
-            DeviceManager.OwnIdentityChanged += (s, e) => { /* UI will refresh via event */ };
         }
 
         protected override async void OnLaunched(LaunchActivatedEventArgs e)
@@ -72,13 +49,12 @@ namespace KDEConnect.WP81
             {
                 rootFrame = new Frame();
                 rootFrame.CacheSize = 1;
-
-                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
-                {
-                }
-
                 Window.Current.Content = rootFrame;
             }
+
+            // Services must exist before the first page is constructed: the
+            // device list page resolves DeviceManager in its constructor.
+            await InitializeServicesAsync();
 
             if (rootFrame.Content == null)
             {
@@ -100,16 +76,77 @@ namespace KDEConnect.WP81
                 }
             }
 
-            await InitializeAsync();
-
             Window.Current.Activate();
         }
 
-        private async Task InitializeAsync()
+        /// <summary>
+        /// Builds the service graph in dependency order. The identity is the
+        /// root: nothing can be advertised or connected without it, and the
+        /// certificate generation is slow enough that it must not run on the
+        /// dispatcher thread.
+        /// </summary>
+        private async Task InitializeServicesAsync()
         {
-            await DeviceManager.InitializeOwnIdentityAsync("WP81");
-            await LinkManager.StartListeningAsync();
-            await DeviceManager.StartDiscoveryAsync();
+            try
+            {
+                DeviceStore = new DeviceStore(new StorageBlobStore());
+
+                DeviceStore.OwnIdentity own = DeviceStore.LoadIdentity();
+                if (own == null)
+                {
+                    // First run, or an identity file we refuse to trust. The id
+                    // minted here must then be reused forever, which is exactly
+                    // what DeviceStore.LoadIdentity guarantees on later runs.
+                    string newId = Sanitize.GenerateDeviceId();
+                    TlsIdentity minted = await Task.Run(delegate
+                    {
+                        return CertificateProvider.CreateIdentity(newId);
+                    });
+
+                    own = new DeviceStore.OwnIdentity();
+                    own.DeviceId = newId;
+                    own.DeviceName = DefaultDeviceName;
+                    own.CertificateDer = minted.CertificateDer;
+                    own.PrivateKeyDer = minted.PrivateKeyDer;
+                    DeviceStore.SaveIdentity(own);
+                }
+
+                TlsIdentity identity = new TlsIdentity(
+                    own.DeviceId, own.CertificateDer, own.PrivateKeyDer);
+
+                DeviceInfo localInfo = new DeviceInfo(
+                    own.DeviceId,
+                    string.IsNullOrEmpty(own.DeviceName) ? DefaultDeviceName : own.DeviceName,
+                    DeviceKind.Phone,
+                    ProtocolConstants.ProtocolVersion);
+
+                LinkManager = new LinkManager(identity, localInfo);
+                PluginManager = new PluginManager(LinkManager);
+
+                // Only implemented plugins contribute capabilities, so a peer is
+                // never told about something this build cannot actually do.
+                PluginManager.RegisterPlugin(new PingPlugin());
+
+                localInfo.IncomingCapabilities.AddRange(PluginManager.GetIncomingCapabilities());
+                localInfo.OutgoingCapabilities.AddRange(PluginManager.GetOutgoingCapabilities());
+
+                DeviceManager = new DeviceManager(DeviceStore, LinkManager, PluginManager);
+                DeviceManager.SetOwnIdentity(own);
+
+                await LinkManager.StartAsync();
+                await DeviceManager.StartDiscoveryAsync();
+
+                StartupError = null;
+            }
+            catch (Exception ex)
+            {
+                StartupError = ex.Message;
+                if (DeviceManager != null)
+                {
+                    DeviceManager.StopDiscovery();
+                }
+                throw;
+            }
         }
 
         private void RootFrame_FirstNavigated(object sender, NavigationEventArgs e)
@@ -119,20 +156,48 @@ namespace KDEConnect.WP81
             rootFrame.Navigated -= RootFrame_FirstNavigated;
         }
 
-        private async void OnSuspending(object sender, SuspendingEventArgs e)
+        /// <summary>
+        /// Windows Phone gives no background execution, so sockets die on
+        /// suspend (docs/known-limitations.md L2). Everything is torn down
+        /// cleanly and rebuilt on resume rather than left half-open.
+        /// </summary>
+        private void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
-
-            DeviceManager.StopDiscovery();
-            LinkManager.StopListening();
-            LinkManager.Dispose();
-
-            deferral.Complete();
+            try
+            {
+                if (DeviceManager != null)
+                {
+                    DeviceManager.StopDiscovery();
+                }
+                if (LinkManager != null)
+                {
+                    LinkManager.Stop();
+                }
+            }
+            finally
+            {
+                deferral.Complete();
+            }
         }
 
         private async void OnResuming(object sender, object e)
         {
-            await InitializeAsync();
+            try
+            {
+                if (LinkManager != null)
+                {
+                    await LinkManager.StartAsync();
+                }
+                if (DeviceManager != null)
+                {
+                    await DeviceManager.StartDiscoveryAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                StartupError = ex.Message;
+            }
         }
     }
 }

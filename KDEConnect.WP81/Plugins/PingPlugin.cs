@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using KDEConnect.WP81.Core;
 using KDEConnect.WP81.Services;
+using KDEConnect.WP81.Transport;
 
 namespace KDEConnect.WP81.Plugins
 {

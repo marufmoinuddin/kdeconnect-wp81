@@ -39,6 +39,17 @@ namespace KDEConnect.WP81.Core
             return value;
         }
 
+        /// <summary>
+        /// A fresh protocol device id: 32 lowercase hex characters, which
+        /// satisfies the 32-38 char [a-zA-Z0-9_-] rule the reference enforces
+        /// (deviceinfo.h:170-186) and is what kdeconnect-android generates
+        /// (LanLinkProvider.kt:60-64).
+        /// </summary>
+        public static string GenerateDeviceId()
+        {
+            return Guid.NewGuid().ToString("N");
+        }
+
         /// <summary>True when the value is a syntactically valid device id.</summary>
         public static bool IsValidDeviceId(string value)
         {
