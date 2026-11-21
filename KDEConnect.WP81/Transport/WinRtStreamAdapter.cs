@@ -48,14 +48,37 @@ namespace KDEConnect.WP81.Transport
             set { throw new NotSupportedException("Sequential stream"); }
         }
 
+        /// <summary>
+        /// Pushes buffered bytes to the socket.
+        /// </summary>
+        /// <remarks>
+        /// This must forward to IOutputStream.FlushAsync. An earlier version
+        /// assumed writes reached the wire on their own and returned a completed
+        /// task here, which was wrong: WinRT's stream buffers, so the plaintext
+        /// identity packet stayed in the buffer while the desktop's one-second
+        /// timer expired and it aborted the connection. The desktop logged "Host
+        /// timed out without sending any identity" and this side saw a closed
+        /// socket, which Bouncy Castle reports as internal_error(80) at stage
+        /// 'created' - three layers of misdirection for a no-op Flush.
+        /// </remarks>
         public override void Flush()
         {
-            // Nothing buffered at this layer: writes go straight to the socket.
+            FlushAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
 
         public override Task FlushAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult<bool>(true);
+            return FlushCoreAsync(cancellationToken);
+        }
+
+        private async Task FlushCoreAsync(CancellationToken cancellationToken)
+        {
+            if (_closed || _output == null)
+            {
+                return;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            await _output.FlushAsync().AsTask(cancellationToken);
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -122,7 +145,20 @@ namespace KDEConnect.WP81.Transport
             IBuffer toWrite = window.AsBuffer();
 
             cancellationToken.ThrowIfCancellationRequested();
-            await _output.WriteAsync(toWrite).AsTask(cancellationToken);
+            uint written = await _output.WriteAsync(toWrite).AsTask(cancellationToken);
+
+            // A short write would silently truncate a TLS record, so treat it as
+            // a failure rather than letting the handshake proceed on bad data.
+            if (written != (uint)count)
+            {
+                throw new IOException("short write: " + written.ToString() +
+                                      " of " + count.ToString() + " bytes");
+            }
+
+            // Flush as part of every write. The protocol is handshake-heavy and
+            // small, so the batching this gives up is worth nothing next to the
+            // cost of losing the first packet on the connection.
+            await _output.FlushAsync().AsTask(cancellationToken);
         }
 
         public override long Seek(long offset, SeekOrigin origin)

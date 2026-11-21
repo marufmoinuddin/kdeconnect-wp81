@@ -227,3 +227,24 @@ build actually renders on a Nokia device.
   (`WPSystem`, other apps' data). Those are reported per row as a problem rather
   than ending the listing, because one unreadable folder must not look like an
   empty card.
+
+## L14 - A no-op Flush silently drops the first packet on a WinRT socket
+
+- **Symptom:** pairing fails with
+  `TLS server handshake failed at stage 'created': internal_error(80)` and the
+  phone reports `peer sent 0 bytes`. The desktop logs
+  `newTcpConnection: Host timed out without sending any identity`.
+- **Cause:** `WinRtStreamAdapter` implemented `Flush`/`FlushAsync` as no-ops on
+  the assumption that writes reached the wire immediately. WinRT's
+  `IOutputStream` **buffers**. The plaintext identity packet therefore sat in the
+  buffer while the desktop's one-second timer expired and it aborted the socket.
+  Bouncy Castle saw the close and reported it as `internal_error(80)` at stage
+  `'created'`, which reads like a TLS fault and is not one.
+- **Why it survived host tests:** the same code on .NET over a TCP stream does
+  not buffer at that layer, so every host-side handshake passed. Only a device
+  reveals it.
+- **Corroboration:** the UDP discovery path works because it wraps the output
+  stream in a `using` block, and disposing the stream flushes it.
+- **Fix:** `Flush`/`FlushAsync` forward to `IOutputStream.FlushAsync`, every write
+  flushes as part of completing, and a short write now raises instead of
+  silently truncating a TLS record.
