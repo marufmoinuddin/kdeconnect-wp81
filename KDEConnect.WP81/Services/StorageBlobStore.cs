@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using KDEConnect.WP81.Core;

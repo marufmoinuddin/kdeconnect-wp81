@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Windows.Storage;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Navigation;
 using KDEConnect.WP81.Core;
 using KDEConnect.WP81.Services;
 
@@ -20,7 +22,7 @@ namespace KDEConnect.WP81.Pages
             this.NavigationCacheMode = NavigationCacheMode.Disabled;
         }
 
-        protected override void OnNavigatedTo(Windows.UI.Xaml.Navigation.NavigationEventArgs e)
+        protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             _deviceStore = ((App)App.Current).DeviceStore;
             _deviceManager = ((App)App.Current).DeviceManager;
@@ -115,8 +117,8 @@ namespace KDEConnect.WP81.Pages
                     sb.AppendLine("Last TCP Port: " + p.LastTcpPort);
                     if (p.PinnedCertificateDer != null && p.PinnedCertificateDer.Length > 0)
                         sb.AppendLine("Pinned Cert SHA256: " + Redactor.CertificateFingerprint(p.PinnedCertificateDer, 8));
-                    sb.AppendLine("Incoming Caps: " + string.Join(", ", p.IncomingCapabilities ?? new System.Collections.Generic.List<string>()));
-                    sb.AppendLine("Outgoing Caps: " + string.Join(", ", p.OutgoingCapabilities ?? new System.Collections.Generic.List<string>()));
+                    sb.AppendLine("Incoming Caps: " + string.Join(", ", p.IncomingCapabilities ?? new List<string>()));
+                    sb.AppendLine("Outgoing Caps: " + string.Join(", ", p.OutgoingCapabilities ?? new List<string>()));
                 }
                 sb.AppendLine();
 

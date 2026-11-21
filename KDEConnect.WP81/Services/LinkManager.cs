@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using KDEConnect.WP81.Core;
+using KDEConnect.WP81.Security;
 using KDEConnect.WP81.Transport;
 
 namespace KDEConnect.WP81.Services

@@ -1,4 +1,5 @@
 ﻿using Windows.UI.Xaml.Controls;
+using KDEConnect.WP81.Core;
 using KDEConnect.WP81.Services;
 
 namespace KDEConnect.WP81.Pages
@@ -24,7 +25,7 @@ namespace KDEConnect.WP81.Pages
             _deviceId = deviceId;
 
             DeviceRecordView view = new DeviceRecordView();
-            Core.DeviceRecord record = deviceManager != null ? deviceManager.GetDevice(deviceId) : null;
+            DeviceRecord record = deviceManager != null ? deviceManager.GetDevice(deviceId) : null;
             if (record != null)
             {
                 view.Name = string.IsNullOrEmpty(record.DeviceName) ? record.DeviceId : record.DeviceName;

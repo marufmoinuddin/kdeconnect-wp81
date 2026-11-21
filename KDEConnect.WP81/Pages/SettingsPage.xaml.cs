@@ -4,7 +4,9 @@ using Windows.Storage;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Navigation;
 using KDEConnect.WP81.Core;
+using KDEConnect.WP81.Security;
 using KDEConnect.WP81.Services;
 
 namespace KDEConnect.WP81.Pages

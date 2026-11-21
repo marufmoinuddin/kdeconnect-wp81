@@ -1,5 +1,5 @@
-﻿using System;
-using Windows.UI.Xaml.Controls;
+﻿using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Navigation;
 
 namespace KDEConnect.WP81.Pages
 {
